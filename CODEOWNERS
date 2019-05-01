@@ -107,6 +107,7 @@
 /drivers/*/*stm32*                        @erwango
 /drivers/*/*native_posix*                 @aescolar
 /drivers/adc/                             @anangl
+/drivers/adc/adc_stm32.c                  @cybertale
 /drivers/bluetooth/                       @sjanc @jhedberg @Vudentz
 /drivers/can/                             @alexanderwachter
 /drivers/can/*mcp2515*                    @karstenkoenig
@@ -156,6 +157,7 @@
 /dts/arm/microchip/                       @franciscomunoz @albertofloyd @scottwcpg
 /dts/bindings/                            @galak
 /dts/bindings/can/                        @alexanderwachter
+/dts/bindings/iio/adc/st,stm32-adc.yaml   @cybertale
 /dts/bindings/serial/ns16550.yaml         @gnuless
 /dts/bindings/*/nordic*                   @anangl
 /dts/bindings/*/nxp*                      @MaureenHelm
