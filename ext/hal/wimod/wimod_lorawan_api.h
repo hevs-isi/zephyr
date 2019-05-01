@@ -173,6 +173,13 @@ int wimod_lorawan_factory_reset();
 // ping device
 int wimod_lorawan_send_ping();
 
+struct lw_dev_info_t
+{
+    uint8_t type;
+    uint32_t addr;
+    uint32_t id;
+};
+int wimod_lorawan_get_device_info();
 // get firmware Version
 int wimod_lorawan_get_firmware_version();
 

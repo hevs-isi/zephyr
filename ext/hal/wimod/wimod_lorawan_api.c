@@ -24,12 +24,28 @@
 #include <stdlib.h>
 #include "wimod_hci_driver.h"
 #include "wimod_lorawan_api.h"
+#include "misc/byteorder.h"
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(wimod_lorawan_api, LOG_LEVEL_DBG);
 
 #define MAKEWORD(lo,hi) ((lo)|((hi) << 8))
 #define MAKELONG(lo,hi) ((lo)|((hi) << 16))
+
+static uint32_t mk_uint32_t(const uint8_t *buffer)
+{
+    uint32_t tmp;
+    memcpy(&tmp, buffer, sizeof(tmp));
+    return sys_le32_to_cpu(tmp);
+}
+
+static uint16_t mk_uint16_t(const uint8_t *buffer)
+{
+    uint16_t tmp;
+    memcpy(&tmp, buffer, sizeof(tmp));
+    return sys_le16_to_cpu(tmp);
+}
+
 
 //------------------------------------------------------------------------------
 //
@@ -43,6 +59,9 @@ wimod_lorawan_process_rx_msg(wimod_hci_message_t* rx_msg);
 
 static void
 wimod_lorawan_process_devmgmt_message(wimod_hci_message_t* rx_msg);
+
+static void
+wimod_lorawan_devmgmt_device_info_rsp(wimod_hci_message_t* rx_msg);
 
 static void
 wimod_lorawan_devmgmt_firmware_version_rsp(wimod_hci_message_t* rx_msg);
@@ -176,6 +195,17 @@ int wimod_lorawan_send_ping()
     // 1. init header
     tx_message.sap_id = DEVMGMT_SAP_ID;
     tx_message.msg_id = DEVMGMT_MSG_PING_REQ;
+    tx_message.length = 0;
+
+    // 2. send HCI message without payload
+    return wimod_hci_send_message(&tx_message);
+}
+
+int wimod_lorawan_get_device_info()
+{
+    // 1. init header
+    tx_message.sap_id = DEVMGMT_SAP_ID;
+    tx_message.msg_id = DEVMGMT_MSG_GET_DEVICE_INFO_REQ;
     tx_message.length = 0;
 
     // 2. send HCI message without payload
@@ -491,6 +521,11 @@ static void wimod_lorawan_process_devmgmt_message(wimod_hci_message_t* rx_msg)
                 wimod_lorawan_show_response("ping response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
                 break;
 
+        case    DEVMGMT_MSG_GET_DEVICE_INFO_RSP:
+                wimod_lorawan_devmgmt_device_info_rsp(rx_msg);
+                break;
+
+
         case    DEVMGMT_MSG_GET_FW_VERSION_RSP:
                 wimod_lorawan_devmgmt_firmware_version_rsp(rx_msg);
                 break;
@@ -518,6 +553,25 @@ static void wimod_lorawan_process_devmgmt_message(wimod_hci_message_t* rx_msg)
         default:
                 LOG_DBG("unhandled DeviceMgmt message received - msg_id : 0x%02X", (u8_t)rx_msg->msg_id);
                 break;
+    }
+}
+
+static void wimod_lorawan_devmgmt_device_info_rsp(wimod_hci_message_t* rx_msg)
+{
+    wimod_lorawan_show_response("device info response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
+
+    if (rx_msg->payload[0] == DEVMGMT_STATUS_OK)
+    {
+        struct lw_dev_info_t info =
+        {
+            .type = rx_msg->payload[1],
+            .addr = mk_uint32_t(&rx_msg->payload[2]),
+            .id = mk_uint32_t(&rx_msg->payload[6]),
+        };
+
+        LOG_DBG("ModuleType: 0x%02x", info.type);
+        LOG_DBG("devaddr: 0x%08"PRIx32, info.addr);
+        LOG_DBG("dev id: 0x%08"PRIx32, info.id);
     }
 }
 

@@ -114,19 +114,37 @@ Stopped at 1.520s
     ```
 
     Typing `lora` + <kbd>TAB</kbd> will display the list of lora commnds:
+    
     ```
-    uart:~$ lora 
+    uart:~$ lora
     firmware       custom         getmode        get_rtc        set_rtc
     get_rtc_alarm  factory        deveui         set            join
     nwk            setrstack      rstack         set_rstack     udata
     cdata
     ```
-1. When the code is run for the first time with the modem, the APP_EUI and APP_KEY
-    must be programmed into the modem: (the key is fixed in the code, see
-    `../ext/hal/wimod/wimod_lorawan_api.c`):
+1. Get the DevEUI:
 
     ```
-    lora set
+    [00:07:29.956,110] <dbg> wimod_hci_driver.wimod_hci_send_message: here
+    [00:07:29.961,582] <dbg> wimod_hci_driver.wimod_hci_process_rx_message: wimod_hci_process_rx_message
+    [00:07:29.961,640] <dbg> wimod_lorawan_api.wimod_lorawan_process_rx_msg: here
+    [00:07:29.961,671] <dbg> wimod_lorawan_api.wimod_lorawan_process_lorawan_message: msg_id:40
+    [00:07:29.961,730] <dbg> wimod_lorawan_api.wimod_lorawan_show_response: device EUI response: - Status(0x00) : ok
+    [00:07:29.961,763] <inf> wimod_lorawan_api: 64-Bit Device EUI: 0x70b3d58ff0039366
+    ```
+
+1. When the code is run for the first time with the modem, the APP_EUI and APP_KEY
+    must be programmed into the modem:
+
+    ```
+    # Informations from the thethingsnetwork after registering a device:
+    const char *appEui = "AABBCCDDEEFF0011";
+    const char *appKey = "0123456789ABCDEF0123456789ABCDEF";
+    ```
+
+    ```
+    # Command to be set on the device shell
+    lora set AABBCCDDEEFF0011 0123456789ABCDEF0123456789ABCDEF
     ```
 
 1. Join the network (only needed after `lora set`, it's automatically done at reboot time):
@@ -134,6 +152,21 @@ Stopped at 1.520s
     ```
     lora join
     ```
+
+1. If the join has succeeded, the device address can be obtained:
+
+    ```
+    uart:~$ lora info
+    [00:03:45.391,163] <dbg> wimod_hci_driver.wimod_hci_send_message: here
+    [00:03:45.396,748] <dbg> wimod_hci_driver.wimod_hci_process_rx_message: wimod_hci_process_rx_message
+    [00:03:45.396,808] <dbg> wimod_lorawan_api.wimod_lorawan_process_rx_msg: here
+    [00:03:45.396,838] <dbg> wimod_lorawan_api.wimod_lorawan_process_devmgmt_message: here
+    [00:03:45.396,896] <dbg> wimod_lorawan_api.wimod_lorawan_show_response: device info response: - Status(0x00) : ok
+    [00:03:45.396,928] <dbg> wimod_lorawan_api.wimod_lorawan_devmgmt_device_info_rsp: ModuleType: 0xa0
+    [00:03:45.396,958] <dbg> wimod_lorawan_api.wimod_lorawan_devmgmt_device_info_rsp: devaddr: 0x2601271d
+    [00:03:45.396,988] <dbg> wimod_lorawan_api.wimod_lorawan_devmgmt_device_info_rsp: dev id: 0x00001eff
+    ```
+
 
 1. Send unreliable data to the network:
 
