@@ -59,7 +59,7 @@ Hierarchy Example
 +------------+-----------+--------------+------------+--------------+---------+
 |SOC Family  |NXP Kinetis|Nordic NRF5   |Nordic NRF5 |Quark         |Quark    |
 +------------+-----------+--------------+------------+--------------+---------+
-|CPU Core    |Cortex-M4  |Cortex-M4     |Cortex-M0+  |Lakemont      |Lakemont |
+|CPU Core    |Cortex-M4  |Cortex-M4     |Cortex-M0   |Lakemont      |Lakemont |
 +------------+-----------+--------------+------------+--------------+---------+
 |Architecture|ARM        |ARM           |ARM         |x86           |x86      |
 +------------+-----------+--------------+------------+--------------+---------+
@@ -145,7 +145,7 @@ guidelines should be followed when porting a board:
   96board), configure pins to fit this connector.
 
 - Configure components that enable the use of these pins, such as
-  configuring and SPI instance for Arduino SPI.
+  configuring an SPI instance for Arduino SPI.
 
 - Configure an output for the console.
 

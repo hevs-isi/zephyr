@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 zephyr_library()
 
 zephyr_library_sources_ifdef(CONFIG_I2C_BITBANG		i2c_bitbang.c)
@@ -19,6 +21,7 @@ zephyr_library_sources_ifdef(CONFIG_I2C_SIFIVE		i2c_sifive.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_NIOS2		i2c_nios2.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_GECKO		i2c_gecko.c)
 zephyr_library_sources_ifdef(CONFIG_I2C_SWITCH      i2c_switch.c)
+zephyr_library_sources_ifdef(CONFIG_I2C_RV32M1_LPI2C	i2c_rv32m1_lpi2c.c)
 
 zephyr_library_sources_ifdef(CONFIG_I2C_STM32_V1
 	i2c_ll_stm32_v1.c

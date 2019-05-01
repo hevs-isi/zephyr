@@ -30,6 +30,13 @@
 
 #define BOOT_IMG_VER_STRLEN_MAX 25  /* 255.255.65535.4294967295\0 */
 
+/* Trailer: */
+#define BOOT_MAX_ALIGN		8
+#define BOOT_MAGIC_SZ		16
+
+#define BOOT_TRAILER_IMG_STATUS_OFFS(bank_area) ((bank_area)->fa_size -\
+						  BOOT_MAGIC_SZ -\
+						  BOOT_MAX_ALIGN * 2)
 /**
  * @brief MCUboot image header representation for image version
  *
@@ -143,7 +150,7 @@ int boot_write_img_confirmed(void);
  * @return a BOOT_SWAP_TYPE_[...] constant on success, negative errno code on
  * fail.
  */
-int boot_swap_type(void);
+int mcuboot_swap_type(void);
 
 /**
  * @brief Marks the image in slot 1 as pending. On the next reboot, the system

@@ -31,10 +31,10 @@ extern "C" {
 
 /** @brief Line control signals. */
 enum uart_line_ctrl {
-	UART_LINE_CTRL_RTS = (1 << 1),
-	UART_LINE_CTRL_DTR = (1 << 2),
-	UART_LINE_CTRL_DCD = (1 << 3),
-	UART_LINE_CTRL_DSR = (1 << 4),
+	UART_LINE_CTRL_RTS = BIT(1),
+	UART_LINE_CTRL_DTR = BIT(2),
+	UART_LINE_CTRL_DCD = BIT(3),
+	UART_LINE_CTRL_DSR = BIT(4),
 };
 
 /**
@@ -218,17 +218,13 @@ struct uart_event {
 /**
  * @typedef uart_callback_t
  * @brief Define the application callback function signature for
- * uart_set_callback() function.
+ * uart_callback_set() function.
  *
  * @param evt	    Pointer to uart_event structure.
  * @param user_data Pointer to data specified by user.
  */
 typedef void (*uart_callback_t)(struct uart_event *evt, void *user_data);
 
-#ifdef CONFIG_PCI
-#include <drivers/pci/pci.h>
-#include <drivers/pci/pci_mgr.h>
-#endif
 /**
  * @brief Options for @a UART initialization.
  */
@@ -331,10 +327,6 @@ struct uart_device_config {
 	};
 
 	u32_t sys_clk_freq;
-
-#ifdef CONFIG_PCI
-	struct pci_dev_info  pci_dev;
-#endif /* CONFIG_PCI */
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_config_func_t	irq_config_func;
@@ -455,7 +447,7 @@ static inline int uart_callback_set(struct device *dev,
  * @brief Send given number of bytes from buffer through UART.
  *
  * Function returns immediately and event handler,
- * set using @ref uart_set_callback, is called after transfer is finished.
+ * set using @ref uart_callback_set, is called after transfer is finished.
  *
  * @param dev     UART device structure.
  * @param buf     Pointer to transmit buffer.
@@ -499,7 +491,7 @@ static inline int uart_tx_abort(struct device *dev)
  * @brief Start receiving data through UART.
  *
  * Function sets given buffer as first buffer for receiving and returns
- * immediately. After that event handler, set using @ref uart_set_callback,
+ * immediately. After that event handler, set using @ref uart_callback_set,
  * is called with UART_RX_RDY or UART_RX_BUF_REQUEST events.
  *
  * @param dev     UART device structure.
@@ -577,12 +569,12 @@ static inline int uart_rx_disable(struct device *dev)
  */
 __syscall int uart_err_check(struct device *dev);
 
-static inline int _impl_uart_err_check(struct device *dev)
+static inline int z_impl_uart_err_check(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
 
-	if (api->err_check) {
+	if (api->err_check != NULL) {
 		return api->err_check(dev);
 	}
 	return 0;
@@ -603,7 +595,7 @@ static inline int _impl_uart_err_check(struct device *dev)
  */
 __syscall int uart_poll_in(struct device *dev, unsigned char *p_char);
 
-static inline int _impl_uart_poll_in(struct device *dev, unsigned char *p_char)
+static inline int z_impl_uart_poll_in(struct device *dev, unsigned char *p_char)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -627,7 +619,7 @@ static inline int _impl_uart_poll_in(struct device *dev, unsigned char *p_char)
 __syscall void uart_poll_out(struct device *dev,
 				      unsigned char out_char);
 
-static inline void _impl_uart_poll_out(struct device *dev,
+static inline void z_impl_uart_poll_out(struct device *dev,
 						unsigned char out_char)
 {
 	const struct uart_driver_api *api =
@@ -651,13 +643,13 @@ static inline void _impl_uart_poll_out(struct device *dev,
  */
 __syscall int uart_configure(struct device *dev, const struct uart_config *cfg);
 
-static inline int _impl_uart_configure(struct device *dev,
+static inline int z_impl_uart_configure(struct device *dev,
 				       const struct uart_config *cfg)
 {
 	const struct uart_driver_api *api =
 				(const struct uart_driver_api *)dev->driver_api;
 
-	if (api->configure) {
+	if (api->configure != NULL) {
 		return api->configure(dev, cfg);
 	}
 
@@ -678,13 +670,13 @@ static inline int _impl_uart_configure(struct device *dev,
  */
 __syscall int uart_config_get(struct device *dev, struct uart_config *cfg);
 
-static inline int _impl_uart_config_get(struct device *dev,
+static inline int z_impl_uart_config_get(struct device *dev,
 				     struct uart_config *cfg)
 {
 	const struct uart_driver_api *api =
 				(const struct uart_driver_api *)dev->driver_api;
 
-	if (api->config_get) {
+	if (api->config_get != NULL) {
 		return api->config_get(dev, cfg);
 	}
 
@@ -765,7 +757,7 @@ static inline int uart_fifo_read(struct device *dev, u8_t *rx_data,
  */
 __syscall void uart_irq_tx_enable(struct device *dev);
 
-static inline void _impl_uart_irq_tx_enable(struct device *dev)
+static inline void z_impl_uart_irq_tx_enable(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -783,7 +775,7 @@ static inline void _impl_uart_irq_tx_enable(struct device *dev)
  */
 __syscall void uart_irq_tx_disable(struct device *dev);
 
-static inline void _impl_uart_irq_tx_disable(struct device *dev)
+static inline void z_impl_uart_irq_tx_disable(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -829,7 +821,7 @@ static inline int uart_irq_tx_ready(struct device *dev)
  */
 __syscall void uart_irq_rx_enable(struct device *dev);
 
-static inline void _impl_uart_irq_rx_enable(struct device *dev)
+static inline void z_impl_uart_irq_rx_enable(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -848,7 +840,7 @@ static inline void _impl_uart_irq_rx_enable(struct device *dev)
  */
 __syscall void uart_irq_rx_disable(struct device *dev);
 
-static inline void _impl_uart_irq_rx_disable(struct device *dev)
+static inline void z_impl_uart_irq_rx_disable(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -927,7 +919,7 @@ static inline int uart_irq_rx_ready(struct device *dev)
  */
 __syscall void uart_irq_err_enable(struct device *dev);
 
-static inline void _impl_uart_irq_err_enable(struct device *dev)
+static inline void z_impl_uart_irq_err_enable(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -947,7 +939,7 @@ static inline void _impl_uart_irq_err_enable(struct device *dev)
  */
 __syscall void uart_irq_err_disable(struct device *dev);
 
-static inline void _impl_uart_irq_err_disable(struct device *dev)
+static inline void z_impl_uart_irq_err_disable(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -967,7 +959,7 @@ static inline void _impl_uart_irq_err_disable(struct device *dev)
  */
 __syscall int uart_irq_is_pending(struct device *dev);
 
-static inline int _impl_uart_irq_is_pending(struct device *dev)
+static inline int z_impl_uart_irq_is_pending(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -1004,7 +996,7 @@ static inline int _impl_uart_irq_is_pending(struct device *dev)
  */
 __syscall int uart_irq_update(struct device *dev);
 
-static inline int _impl_uart_irq_update(struct device *dev)
+static inline int z_impl_uart_irq_update(struct device *dev)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;
@@ -1077,7 +1069,7 @@ static inline void uart_irq_callback_set(struct device *dev,
 __syscall int uart_line_ctrl_set(struct device *dev,
 				 u32_t ctrl, u32_t val);
 
-static inline int _impl_uart_line_ctrl_set(struct device *dev,
+static inline int z_impl_uart_line_ctrl_set(struct device *dev,
 					   u32_t ctrl, u32_t val)
 {
 	const struct uart_driver_api *api =
@@ -1102,7 +1094,7 @@ static inline int _impl_uart_line_ctrl_set(struct device *dev,
  */
 __syscall int uart_line_ctrl_get(struct device *dev, u32_t ctrl, u32_t *val);
 
-static inline int _impl_uart_line_ctrl_get(struct device *dev,
+static inline int z_impl_uart_line_ctrl_get(struct device *dev,
 					   u32_t ctrl, u32_t *val)
 {
 	const struct uart_driver_api *api =
@@ -1134,7 +1126,7 @@ static inline int _impl_uart_line_ctrl_get(struct device *dev,
  */
 __syscall int uart_drv_cmd(struct device *dev, u32_t cmd, u32_t p);
 
-static inline int _impl_uart_drv_cmd(struct device *dev, u32_t cmd, u32_t p)
+static inline int z_impl_uart_drv_cmd(struct device *dev, u32_t cmd, u32_t p)
 {
 	const struct uart_driver_api *api =
 		(const struct uart_driver_api *)dev->driver_api;

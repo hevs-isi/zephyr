@@ -15,6 +15,7 @@
 		led0 = &green_led;
 		led1 = &blue_led;
 		led2 = &red_led;
+		led3 = &sts_led;
 		sw0 = &user_button_2;
 		sw1 = &user_button_3;
 		sw2 = &user_button_4;
@@ -29,7 +30,7 @@
 
 	leds {
 		compatible = "gpio-leds";
-		red_led: led_0 {
+		blue_led: led_0 {
 			gpios = <&gpioa 22 0>;
 			label = "User LD1";
 		};
@@ -37,9 +38,13 @@
 			gpios = <&gpioa 23 0>;
 			label = "User LD2";
 		};
-		blue_led: led_2 {
+		red_led: led_2 {
 			gpios = <&gpioa 24 0>;
 			label = "User LD3";
+		};
+		sts_led: led_3 {
+			gpios = <&gpioe 0 0>;
+			label = "User LD4";
 		};
 	};
 
@@ -67,4 +72,21 @@
 &uart0 {
 	current-speed = <115200>;
 	status = "ok";
+};
+
+arduino_i2c: &i2c0 {
+	status = "ok";
+};
+
+&i2c3 {
+	status = "ok";
+
+	fxos8700@1e {
+		compatible = "nxp,fxos8700";
+		reg = <0x1e>;
+		label = "FXOS8700";
+		reset-gpios = <&gpioe 27 0>;
+		int1-gpios = <&gpioe 1 0>;
+		int2-gpios = <&gpioe 22 0>;
+	};
 };

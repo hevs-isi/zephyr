@@ -51,6 +51,7 @@
 	#endif
 #else
 	#define MPU_MIN_SIZE_ALIGN
+	#define MPU_ALIGN(region_size) . = ALIGN(4)
 #endif
 
 #if defined(CONFIG_XIP)
@@ -128,7 +129,7 @@ SECTIONS {
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
 	_image_rodata_end = .;
-	MPU_MIN_SIZE_ALIGN
+	MPU_ALIGN(_image_rodata_end - _image_rom_start);
 	_image_rom_end = .;
 	_image_rom_size = _image_rom_end - _image_rom_start;
 
@@ -138,7 +139,7 @@ SECTIONS {
 
 #include <app_data_alignment.ld>
 
-#if defined(CONFIG_APP_SHARED_MEM)
+#if defined(CONFIG_USERSPACE)
 #define APP_SHARED_ALIGN MPU_MIN_SIZE_ALIGN
 #define SMEM_PARTITION_ALIGN MPU_ALIGN
 
@@ -147,7 +148,7 @@ SECTIONS {
 	_image_ram_start = _app_smem_start;
 	_app_smem_size = _app_smem_end - _app_smem_start;
 	_app_smem_rom_start = LOADADDR(_APP_SMEM_SECTION_NAME);
-#endif /* CONFIG_APP_SHARED_MEM */
+#endif /* CONFIG_USERSPACE */
 
 	SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD),) {
 		MPU_MIN_SIZE_ALIGN

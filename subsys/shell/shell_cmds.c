@@ -97,10 +97,10 @@ static int cursor_position_get(const struct shell *shell, u16_t *x, u16_t *y)
 				/* Index start position in the buffer where 'y'
 				 * is stored.
 				 */
-				buff_idx = 2;
+				buff_idx = 2U;
 
 				while (shell->ctx->temp_buff[buff_idx] != ';') {
-					*y = *y * 10 +
+					*y = *y * 10U +
 					(shell->ctx->temp_buff[buff_idx++] -
 									  '0');
 					if (buff_idx >=
@@ -115,7 +115,7 @@ static int cursor_position_get(const struct shell *shell, u16_t *x, u16_t *y)
 
 				while (shell->ctx->temp_buff[buff_idx]
 							     != '\0') {
-					*x = *x * 10 +
+					*x = *x * 10U +
 					(shell->ctx->temp_buff[buff_idx++] -
 									   '0');
 
@@ -297,11 +297,6 @@ static int cmd_history(const struct shell *shell, size_t argc, char **argv)
 	size_t i = 0;
 	u16_t len;
 
-	if (!IS_ENABLED(CONFIG_SHELL_HISTORY)) {
-		shell_error(shell, "Command not supported.");
-		return -ENOEXEC;
-	}
-
 	while (1) {
 		shell_history_get(shell->history, true,
 				  shell->ctx->temp_buff, &len);
@@ -326,11 +321,6 @@ static int cmd_shell_stats_show(const struct shell *shell, size_t argc,
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (!IS_ENABLED(CONFIG_SHELL_STATS)) {
-		shell_error(shell, "Command not supported.");
-		return -ENOEXEC;
-	}
-
 	shell_print(shell, "Lost logs: %u", shell->stats->log_lost_cnt);
 
 	return 0;
@@ -341,11 +331,6 @@ static int cmd_shell_stats_reset(const struct shell *shell,
 {
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
-
-	if (!IS_ENABLED(CONFIG_SHELL_STATS)) {
-		shell_error(shell, "Command not supported.");
-		return -ENOEXEC;
-	}
 
 	shell->stats->log_lost_cnt = 0;
 
@@ -369,11 +354,6 @@ static int cmd_resize(const struct shell *shell, size_t argc, char **argv)
 {
 	int err;
 
-	if (!IS_ENABLED(CONFIG_SHELL_CMDS_RESIZE)) {
-		shell_error(shell, "Command not supported.");
-		return -ENOEXEC;
-	}
-
 	if (argc != 1) {
 		shell_error(shell, "%s:%s%s", argv[0],
 			    SHELL_MSG_UNKNOWN_PARAMETER, argv[1]);
@@ -394,58 +374,54 @@ static int cmd_resize(const struct shell *shell, size_t argc, char **argv)
 	return 0;
 }
 
-SHELL_CREATE_STATIC_SUBCMD_SET(m_sub_colors)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(m_sub_colors,
 	SHELL_CMD_ARG(off, NULL, SHELL_HELP_COLORS_OFF, cmd_colors_off, 1, 0),
 	SHELL_CMD_ARG(on, NULL, SHELL_HELP_COLORS_ON, cmd_colors_on, 1, 0),
 	SHELL_SUBCMD_SET_END
-};
+);
 
-SHELL_CREATE_STATIC_SUBCMD_SET(m_sub_echo)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(m_sub_echo,
 	SHELL_CMD_ARG(off, NULL, SHELL_HELP_ECHO_OFF, cmd_echo_off, 1, 0),
 	SHELL_CMD_ARG(on, NULL, SHELL_HELP_ECHO_ON, cmd_echo_on, 1, 0),
 	SHELL_SUBCMD_SET_END
-};
+);
 
-SHELL_CREATE_STATIC_SUBCMD_SET(m_sub_shell_stats)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(m_sub_shell_stats,
 	SHELL_CMD_ARG(reset, NULL, SHELL_HELP_STATISTICS_RESET,
 			cmd_shell_stats_reset, 1, 0),
 	SHELL_CMD_ARG(show, NULL, SHELL_HELP_STATISTICS_SHOW,
 			cmd_shell_stats_show, 1, 0),
 	SHELL_SUBCMD_SET_END
-};
+);
 
-SHELL_CREATE_STATIC_SUBCMD_SET(m_sub_backspace_mode)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(m_sub_backspace_mode,
 	SHELL_CMD_ARG(backspace, NULL, SHELL_HELP_BACKSPACE_MODE_BACKSPACE,
 			cmd_bacskpace_mode_backspace, 1, 0),
 	SHELL_CMD_ARG(delete, NULL, SHELL_HELP_BACKSPACE_MODE_DELETE,
 			cmd_bacskpace_mode_delete, 1, 0),
 	SHELL_SUBCMD_SET_END
-};
+);
 
-SHELL_CREATE_STATIC_SUBCMD_SET(m_sub_shell)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(m_sub_shell,
 	SHELL_CMD(backspace_mode, &m_sub_backspace_mode,
 			SHELL_HELP_BACKSPACE_MODE, NULL),
 	SHELL_CMD(colors, &m_sub_colors, SHELL_HELP_COLORS, NULL),
 	SHELL_CMD_ARG(echo, &m_sub_echo, SHELL_HELP_ECHO, cmd_echo, 1, 1),
-	SHELL_CMD(stats, &m_sub_shell_stats, SHELL_HELP_STATISTICS, NULL),
+	SHELL_COND_CMD(CONFIG_SHELL_STATS, stats, &m_sub_shell_stats,
+			SHELL_HELP_STATISTICS, NULL),
 	SHELL_SUBCMD_SET_END
-};
+);
 
-SHELL_CREATE_STATIC_SUBCMD_SET(m_sub_resize)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(m_sub_resize,
 	SHELL_CMD_ARG(default, NULL, SHELL_HELP_RESIZE_DEFAULT,
 			cmd_resize_default, 1, 0),
 	SHELL_SUBCMD_SET_END
-};
+);
 
 SHELL_CMD_ARG_REGISTER(clear, NULL, SHELL_HELP_CLEAR, cmd_clear, 1, 0);
 SHELL_CMD_REGISTER(shell, &m_sub_shell, SHELL_HELP_SHELL, NULL);
 SHELL_CMD_ARG_REGISTER(help, NULL, SHELL_HELP_HELP, cmd_help, 1, 255);
-SHELL_CMD_ARG_REGISTER(history, NULL, SHELL_HELP_HISTORY, cmd_history, 1, 0);
-SHELL_CMD_ARG_REGISTER(resize, &m_sub_resize, SHELL_HELP_RESIZE, cmd_resize,
-			1, 1);
+SHELL_COND_CMD_ARG_REGISTER(CONFIG_SHELL_HISTORY, history, NULL,
+			SHELL_HELP_HISTORY, cmd_history, 1, 0);
+SHELL_COND_CMD_ARG_REGISTER(CONFIG_SHELL_CMDS_RESIZE, resize, &m_sub_resize,
+			SHELL_HELP_RESIZE, cmd_resize, 1, 1);

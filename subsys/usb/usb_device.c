@@ -162,6 +162,8 @@ static struct usb_dev_priv {
 	bool enabled;
 	/** Currently selected configuration */
 	u8_t configuration;
+	/** Remote wakeup feature status */
+	bool remote_wakeup;
 	/** Transfer list */
 	struct usb_transfer_data transfer[MAX_NUM_TRANSFERS];
 } usb_dev;
@@ -303,7 +305,7 @@ static void usb_handle_control_transfer(u8_t ep,
 		}
 
 		/* Send smallest of requested and offered length */
-		usb_dev.data_buf_residue = min(usb_dev.data_buf_len, length);
+		usb_dev.data_buf_residue = MIN(usb_dev.data_buf_len, length);
 		/* Send first part (possibly a zero-length status message) */
 		usb_data_to_host();
 	} else if (ep == USB_CONTROL_OUT_EP0) {
@@ -425,7 +427,7 @@ static bool usb_get_descriptor(u16_t type_index, u16_t lang_id,
 	p = (u8_t *)usb_dev.descriptors;
 	cur_index = 0;
 
-	while (p[DESC_bLength] != 0) {
+	while (p[DESC_bLength] != 0U) {
 		if (p[DESC_bDescriptorType] == type) {
 			if (cur_index == index) {
 				found = true;
@@ -459,6 +461,33 @@ static bool usb_get_descriptor(u16_t type_index, u16_t lang_id,
 	return found;
 }
 
+static bool set_endpoint(const struct usb_ep_descriptor *ep_desc)
+{
+	struct usb_dc_ep_cfg_data ep_cfg;
+
+	ep_cfg.ep_addr = ep_desc->bEndpointAddress;
+	ep_cfg.ep_mps = sys_le16_to_cpu(ep_desc->wMaxPacketSize);
+
+	if (ep_desc->bmAttributes > USB_DC_EP_INTERRUPT) {
+		return false;
+	}
+
+	ep_cfg.ep_type = ep_desc->bmAttributes;
+
+	LOG_DBG("Configure endpoint 0x%x type %u MPS %u",
+		ep_cfg.ep_addr, ep_cfg.ep_type, ep_cfg.ep_mps);
+
+	if (usb_dc_ep_configure(&ep_cfg) < 0) {
+		return false;
+	}
+
+	if (usb_dc_ep_enable(ep_cfg.ep_addr) < 0) {
+		return false;
+	}
+
+	return true;
+}
+
 /*
  * @brief set USB configuration
  *
@@ -473,23 +502,19 @@ static bool usb_get_descriptor(u16_t type_index, u16_t lang_id,
  */
 static bool usb_set_configuration(u8_t config_index, u8_t alt_setting)
 {
-	u8_t *p = NULL;
-	u8_t cur_config = 0U;
-	u8_t cur_alt_setting = 0U;
+	u8_t *p = (u8_t *)usb_dev.descriptors;
+	u8_t cur_alt_setting = 0xFF;
+	u8_t cur_config = 0xFF;
+	bool found = false;
 
-	if (config_index == 0) {
-		/* unconfigure device */
-		LOG_DBG("Device not configured - invalid configuration "
-			"offset");
+	if (config_index == 0U) {
+		/* TODO: unconfigure device */
+		LOG_DBG("Device not configured - invalid configuration");
 		return true;
 	}
 
 	/* configure endpoints for this configuration/altsetting */
-	p = (u8_t *)usb_dev.descriptors;
-	cur_config = 0xFF;
-	cur_alt_setting = 0xFF;
-
-	while (p[DESC_bLength] != 0) {
+	while (p[DESC_bLength] != 0U) {
 		switch (p[DESC_bDescriptorType]) {
 		case DESC_CONFIGURATION:
 			/* remember current configuration index */
@@ -503,28 +528,18 @@ static bool usb_set_configuration(u8_t config_index, u8_t alt_setting)
 			break;
 
 		case DESC_ENDPOINT:
-			if ((cur_config == config_index) &&
-			    (cur_alt_setting == alt_setting)) {
-				struct usb_dc_ep_cfg_data ep_cfg;
-				/* endpoint found for desired config
-				 * and alternate setting
-				 */
-				ep_cfg.ep_type =
-				    p[ENDP_DESC_bmAttributes];
-				ep_cfg.ep_mps =
-				    (p[ENDP_DESC_wMaxPacketSize]) |
-				    (p[ENDP_DESC_wMaxPacketSize + 1]
-					    << 8);
-				ep_cfg.ep_addr =
-				    p[ENDP_DESC_bEndpointAddress];
-				usb_dc_ep_configure(&ep_cfg);
-				usb_dc_ep_enable(ep_cfg.ep_addr);
+			if ((cur_config != config_index) ||
+			    (cur_alt_setting != alt_setting)) {
+				break;
 			}
+
+			found = set_endpoint((struct usb_ep_descriptor *)p);
 			break;
 
 		default:
 			break;
 		}
+
 		/* skip to next descriptor */
 		p += p[DESC_bLength];
 	}
@@ -533,7 +548,7 @@ static bool usb_set_configuration(u8_t config_index, u8_t alt_setting)
 		usb_dev.status_callback(USB_DC_CONFIGURED, &config_index);
 	}
 
-	return true;
+	return found;
 }
 
 /*
@@ -547,18 +562,26 @@ static bool usb_set_configuration(u8_t config_index, u8_t alt_setting)
 static bool usb_set_interface(u8_t iface, u8_t alt_setting)
 {
 	const u8_t *p = usb_dev.descriptors;
-	u8_t cur_iface = 0xFF;
+	const u8_t *if_desc = NULL;
 	u8_t cur_alt_setting = 0xFF;
-	struct usb_dc_ep_cfg_data ep_cfg;
+	u8_t cur_iface = 0xFF;
+	bool found = false;
 
 	LOG_DBG("iface %u alt_setting %u", iface, alt_setting);
 
-	while (p[DESC_bLength] != 0) {
+	while (p[DESC_bLength] != 0U) {
 		switch (p[DESC_bDescriptorType]) {
 		case DESC_INTERFACE:
 			/* remember current alternate setting */
 			cur_alt_setting = p[INTF_DESC_bAlternateSetting];
 			cur_iface = p[INTF_DESC_bInterfaceNumber];
+
+			if (cur_iface == iface &&
+			    cur_alt_setting == alt_setting) {
+				if_desc = (void *)p;
+			}
+
+			LOG_DBG("iface_num %u alt_set %u", iface, alt_setting);
 			break;
 		case DESC_ENDPOINT:
 			if ((cur_iface != iface) ||
@@ -566,17 +589,7 @@ static bool usb_set_interface(u8_t iface, u8_t alt_setting)
 				break;
 			}
 
-			/* Endpoint is found for desired interface and
-			 * alternate setting
-			 */
-			ep_cfg.ep_type = p[ENDP_DESC_bmAttributes];
-			ep_cfg.ep_mps = (p[ENDP_DESC_wMaxPacketSize]) |
-				(p[ENDP_DESC_wMaxPacketSize + 1] << 8);
-			ep_cfg.ep_addr = p[ENDP_DESC_bEndpointAddress];
-			usb_dc_ep_configure(&ep_cfg);
-			usb_dc_ep_enable(ep_cfg.ep_addr);
-
-			LOG_DBG("Found: ep_addr 0x%x", ep_cfg.ep_addr);
+			found = set_endpoint((struct usb_ep_descriptor *)p);
 			break;
 		default:
 			break;
@@ -584,14 +597,13 @@ static bool usb_set_interface(u8_t iface, u8_t alt_setting)
 
 		/* skip to next descriptor */
 		p += p[DESC_bLength];
-		LOG_DBG("p %p", p);
 	}
 
 	if (usb_dev.status_callback) {
-		usb_dev.status_callback(USB_DC_INTERFACE, &iface);
+		usb_dev.status_callback(USB_DC_INTERFACE, if_desc);
 	}
 
-	return true;
+	return found;
 }
 
 /*
@@ -615,9 +627,15 @@ static bool usb_handle_std_device_req(struct usb_setup_packet *setup,
 	case REQ_GET_STATUS:
 		LOG_DBG("REQ_GET_STATUS");
 		/* bit 0: self-powered */
-		/* bit 1: remote wakeup = not supported */
+		/* bit 1: remote wakeup */
 		data[0] = 0U;
 		data[1] = 0U;
+
+		if (IS_ENABLED(CONFIG_USB_DEVICE_REMOTE_WAKEUP)) {
+			data[0] |= (usb_dev.remote_wakeup ?
+				    DEVICE_STATUS_REMOTE_WAKEUP : 0);
+		}
+
 		*len = 2;
 		break;
 
@@ -654,18 +672,29 @@ static bool usb_handle_std_device_req(struct usb_setup_packet *setup,
 
 	case REQ_CLEAR_FEATURE:
 		LOG_DBG("REQ_CLEAR_FEATURE");
+		ret = false;
+
+		if (IS_ENABLED(CONFIG_USB_DEVICE_REMOTE_WAKEUP)) {
+			if (value == FEA_REMOTE_WAKEUP) {
+				usb_dev.remote_wakeup = false;
+				ret = true;
+			}
+		}
 		break;
 	case REQ_SET_FEATURE:
 		LOG_DBG("REQ_SET_FEATURE");
+		ret = false;
 
-		if (value == FEA_REMOTE_WAKEUP) {
-			/* put DEVICE_REMOTE_WAKEUP code here */
+		if (IS_ENABLED(CONFIG_USB_DEVICE_REMOTE_WAKEUP)) {
+			if (value == FEA_REMOTE_WAKEUP) {
+				usb_dev.remote_wakeup = true;
+				ret = true;
+			}
 		}
 
 		if (value == FEA_TEST_MODE) {
 			/* put TEST_MODE code here */
 		}
-		ret = false;
 		break;
 
 	case REQ_SET_DESCRIPTOR:
@@ -890,6 +919,19 @@ static void usb_register_status_callback(usb_dc_status_callback cb)
 	usb_dev.status_callback = cb;
 }
 
+static void forward_status_cb(enum usb_dc_status_code status, const u8_t *param)
+{
+	size_t size = (__usb_data_end - __usb_data_start);
+
+	for (size_t i = 0; i < size; i++) {
+		struct usb_cfg_data *cfg = &__usb_data_start[i];
+
+		if (cfg->cb_usb_status) {
+			cfg->cb_usb_status(cfg, status, param);
+		}
+	}
+}
+
 /**
  * @brief turn on/off USB VBUS voltage
  *
@@ -904,7 +946,6 @@ static int usb_vbus_set(bool on)
 	struct device *gpio_dev;
 
 	gpio_dev = device_get_binding(CONFIG_USB_VBUS_GPIO_DEV_NAME);
-
 	if (!gpio_dev) {
 		LOG_DBG("USB requires GPIO. Cannot find %s!",
 			CONFIG_USB_VBUS_GPIO_DEV_NAME);
@@ -914,13 +955,15 @@ static int usb_vbus_set(bool on)
 	/* Enable USB IO */
 	ret = gpio_pin_configure(gpio_dev, CONFIG_USB_VBUS_GPIO_PIN_NUM,
 				 GPIO_DIR_OUT);
-	if (ret)
+	if (ret) {
 		return ret;
+	}
 
 	ret = gpio_pin_write(gpio_dev, CONFIG_USB_VBUS_GPIO_PIN_NUM,
 			     on == true ? 1 : 0);
-	if (ret)
+	if (ret) {
 		return ret;
+	}
 #endif
 
 	return 0;
@@ -928,8 +971,9 @@ static int usb_vbus_set(bool on)
 
 int usb_set_config(struct usb_cfg_data *config)
 {
-	if (!config)
+	if (!config) {
 		return -EINVAL;
+	}
 
 	/* register descriptors */
 	usb_register_descriptors(config->usb_device_description);
@@ -961,12 +1005,7 @@ int usb_set_config(struct usb_cfg_data *config)
 	/* register class request handlers for each interface*/
 	if (config->interface.custom_handler != NULL) {
 		usb_register_custom_req_handler(
-		    config->interface.custom_handler);
-	}
-
-	/* register status callback */
-	if (config->cb_usb_status != NULL) {
-		usb_register_status_callback(config->cb_usb_status);
+			config->interface.custom_handler);
 	}
 
 	return 0;
@@ -1001,69 +1040,78 @@ int usb_enable(struct usb_cfg_data *config)
 	u32_t i;
 	struct usb_dc_ep_cfg_data ep0_cfg;
 
-	if (true == usb_dev.enabled) {
+	if (usb_dev.enabled == true) {
 		return 0;
 	}
 
 	/* Enable VBUS if needed */
 	ret = usb_vbus_set(true);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
-	ret = usb_dc_set_status_callback(config->cb_usb_status);
-	if (ret < 0)
-		return ret;
+	usb_register_status_callback(forward_status_cb);
+	usb_dc_set_status_callback(forward_status_cb);
 
 	ret = usb_dc_attach();
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	/* Configure control EP */
-	ep0_cfg.ep_mps = MAX_PACKET_SIZE0;
+	ep0_cfg.ep_mps = USB_MAX_CTRL_MPS;
 	ep0_cfg.ep_type = USB_DC_EP_CONTROL;
 
 	ep0_cfg.ep_addr = USB_CONTROL_OUT_EP0;
 	ret = usb_dc_ep_configure(&ep0_cfg);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	ep0_cfg.ep_addr = USB_CONTROL_IN_EP0;
 	ret = usb_dc_ep_configure(&ep0_cfg);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
-
-	/*register endpoint 0 handlers*/
-	ret = usb_dc_ep_set_callback(USB_CONTROL_OUT_EP0,
-	    usb_handle_control_transfer);
-	if (ret < 0)
-		return ret;
-	ret = usb_dc_ep_set_callback(USB_CONTROL_IN_EP0,
-	    usb_handle_control_transfer);
-	if (ret < 0)
-		return ret;
-
-	/*register endpoint handlers*/
-	for (i = 0U; i < config->num_endpoints; i++) {
-		ret = usb_dc_ep_set_callback(config->endpoint[i].ep_addr,
-		    config->endpoint[i].ep_cb);
-		if (ret < 0)
-			return ret;
 	}
 
-	/* init transfer slots */
+	/* Register endpoint 0 handlers*/
+	ret = usb_dc_ep_set_callback(USB_CONTROL_OUT_EP0,
+				     usb_handle_control_transfer);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = usb_dc_ep_set_callback(USB_CONTROL_IN_EP0,
+				     usb_handle_control_transfer);
+	if (ret < 0) {
+		return ret;
+	}
+
+	/* Register endpoint handlers*/
+	for (i = 0U; i < config->num_endpoints; i++) {
+		ret = usb_dc_ep_set_callback(config->endpoint[i].ep_addr,
+					     config->endpoint[i].ep_cb);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	/* Init transfer slots */
 	for (i = 0U; i < MAX_NUM_TRANSFERS; i++) {
 		k_work_init(&usb_dev.transfer[i].work, usb_transfer_work);
 		k_sem_init(&usb_dev.transfer[i].sem, 1, 1);
 	}
 
-	/* enable control EP */
+	/* Enable control EP */
 	ret = usb_dc_ep_enable(USB_CONTROL_OUT_EP0);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	ret = usb_dc_ep_enable(USB_CONTROL_IN_EP0);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	usb_dev.enabled = true;
 
@@ -1074,14 +1122,15 @@ int usb_disable(void)
 {
 	int ret;
 
-	if (true != usb_dev.enabled) {
+	if (usb_dev.enabled != true) {
 		/*Already disabled*/
 		return 0;
 	}
 
 	ret = usb_dc_detach();
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	/* Disable VBUS if needed */
 	usb_vbus_set(false);
@@ -1091,14 +1140,12 @@ int usb_disable(void)
 	return 0;
 }
 
-int usb_write(u8_t ep, const u8_t *data, u32_t data_len,
-		u32_t *bytes_ret)
+int usb_write(u8_t ep, const u8_t *data, u32_t data_len, u32_t *bytes_ret)
 {
 	return usb_dc_ep_write(ep, data, data_len, bytes_ret);
 }
 
-int usb_read(u8_t ep, u8_t *data, u32_t max_data_len,
-		u32_t *ret_bytes)
+int usb_read(u8_t ep, u8_t *data, u32_t max_data_len, u32_t *ret_bytes)
 {
 	return usb_dc_ep_read(ep, data, max_data_len, ret_bytes);
 }
@@ -1113,8 +1160,7 @@ int usb_ep_clear_stall(u8_t ep)
 	return usb_dc_ep_clear_stall(ep);
 }
 
-int usb_ep_read_wait(u8_t ep, u8_t *data, u32_t max_data_len,
-			u32_t *ret_bytes)
+int usb_ep_read_wait(u8_t ep, u8_t *data, u32_t max_data_len, u32_t *ret_bytes)
 {
 	return usb_dc_ep_read_wait(ep, data, max_data_len, ret_bytes);
 }
@@ -1127,9 +1173,7 @@ int usb_ep_read_continue(u8_t ep)
 /* Transfer management */
 static struct usb_transfer_data *usb_ep_get_transfer(u8_t ep)
 {
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(usb_dev.transfer); i++) {
+	for (int i = 0; i < ARRAY_SIZE(usb_dev.transfer); i++) {
 		if (usb_dev.transfer[i].ep == ep) {
 			return &usb_dev.transfer[i];
 		}
@@ -1368,22 +1412,21 @@ int usb_transfer_sync(u8_t ep, u8_t *data, size_t dlen, unsigned int flags)
 	return pdata.tsize;
 }
 
+int usb_wakeup_request(void)
+{
+	if (IS_ENABLED(CONFIG_USB_DEVICE_REMOTE_WAKEUP)) {
+		if (usb_dev.remote_wakeup) {
+			return usb_dc_wakeup_request();
+		}
+		return -EACCES;
+	} else {
+		return -ENOTSUP;
+	}
+}
+
 #ifdef CONFIG_USB_COMPOSITE_DEVICE
 
 static u8_t iface_data_buf[CONFIG_USB_COMPOSITE_BUFFER_SIZE];
-
-static void forward_status_cb(enum usb_dc_status_code status, const u8_t *param)
-{
-	size_t size = (__usb_data_end - __usb_data_start);
-
-	for (size_t i = 0; i < size; i++) {
-		struct usb_cfg_data *cfg = &__usb_data_start[i];
-
-		if (cfg->cb_usb_status_composite) {
-			cfg->cb_usb_status_composite(cfg, status, param);
-		}
-	}
-}
 
 /*
  * The functions class_handler(), custom_handler() and vendor_handler()
@@ -1499,7 +1542,7 @@ static int usb_composite_init(struct device *dev)
 	struct usb_dc_ep_cfg_data ep0_cfg;
 	u8_t *device_descriptor;
 
-	if (true == usb_dev.enabled) {
+	if (usb_dev.enabled == true) {
 		return 0;
 	}
 
@@ -1531,10 +1574,7 @@ static int usb_composite_init(struct device *dev)
 	usb_register_custom_req_handler(custom_handler);
 
 	usb_register_status_callback(forward_status_cb);
-	ret = usb_dc_set_status_callback(forward_status_cb);
-	if (ret < 0) {
-		return ret;
-	}
+	usb_dc_set_status_callback(forward_status_cb);
 
 	/* Enable VBUS if needed */
 	ret = usb_vbus_set(true);
@@ -1548,7 +1588,7 @@ static int usb_composite_init(struct device *dev)
 	}
 
 	/* Configure control EP */
-	ep0_cfg.ep_mps = MAX_PACKET_SIZE0;
+	ep0_cfg.ep_mps = USB_MAX_CTRL_MPS;
 	ep0_cfg.ep_type = USB_DC_EP_CONTROL;
 
 	ep0_cfg.ep_addr = USB_CONTROL_OUT_EP0;
@@ -1566,13 +1606,15 @@ static int usb_composite_init(struct device *dev)
 	/*register endpoint 0 handlers*/
 	ret = usb_dc_ep_set_callback(USB_CONTROL_OUT_EP0,
 				     usb_handle_control_transfer);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	ret = usb_dc_ep_set_callback(USB_CONTROL_IN_EP0,
 				     usb_handle_control_transfer);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	if (composite_setup_ep_cb()) {
 		return -1;

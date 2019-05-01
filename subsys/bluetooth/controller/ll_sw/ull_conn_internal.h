@@ -7,7 +7,17 @@
 /* Macro to convert time in us to connection interval units */
 #define RADIO_CONN_EVENTS(x, y) ((u16_t)(((x) + (y) - 1) / (y)))
 
-u8_t ull_conn_allowed_check(void *conn);
+/* Macro to return PDU time */
+#if defined(CONFIG_BT_CTLR_PHY_CODED)
+#define PKT_US(octets, phy) \
+	(((phy) & BIT(2)) ? \
+	 (80 + 256 + 16 + 24 + ((((2 + (octets) + 4) * 8) + 24 + 3) * 8)) : \
+	 (((octets) + 14) * 8 / BIT(((phy) & 0x03) >> 1)))
+#else /* !CONFIG_BT_CTLR_PHY_CODED */
+#define PKT_US(octets, phy) \
+	(((octets) + 14) * 8 / BIT(((phy) & 0x03) >> 1))
+#endif /* !CONFIG_BT_CTLR_PHY_CODED */
+
 struct ll_conn *ll_conn_acquire(void);
 void ll_conn_release(struct ll_conn *conn);
 u16_t ll_conn_handle_get(struct ll_conn *conn);
@@ -17,6 +27,8 @@ int ull_conn_init(void);
 int ull_conn_reset(void);
 u8_t ull_conn_chan_map_cpy(u8_t *chan_map);
 void ull_conn_chan_map_set(u8_t *chan_map);
+u16_t ull_conn_default_tx_octets_get(void);
+u16_t ull_conn_default_tx_time_get(void);
 u8_t ull_conn_default_phy_tx_get(void);
 u8_t ull_conn_default_phy_rx_get(void);
 void ull_conn_setup(memq_link_t *link, struct node_rx_hdr *rx);
@@ -28,3 +40,4 @@ void ull_conn_tx_lll_enqueue(struct ll_conn *conn, u8_t count);
 void ull_conn_link_tx_release(void *link);
 void ull_conn_tx_ack(struct ll_conn *conn, memq_link_t *link,
 		     struct node_tx *tx);
+u8_t ull_conn_llcp_req(void *conn);

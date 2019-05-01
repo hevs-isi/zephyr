@@ -30,15 +30,13 @@ static void interrupt_handler(void *user_data)
 	const struct serial_data *dev_data = user_data;
 	struct device *dev = dev_data->dev;
 
-	uart_irq_update(dev);
-
-	if (uart_irq_tx_ready(dev)) {
-		/* TODO */
-	}
-
-	if (uart_irq_rx_ready(dev)) {
+	while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
 		struct device *peer = dev_data->peer;
 		u8_t byte;
+
+		if (!uart_irq_rx_ready(dev)) {
+			break;
+		}
 
 		uart_fifo_read(dev, &byte, sizeof(byte));
 		uart_poll_out(peer, byte);
@@ -86,17 +84,15 @@ void main(void)
 	struct device *dev0, *dev1;
 	u32_t dtr = 0U;
 
-	dev0 = device_get_binding(CONFIG_CDC_ACM_PORT_NAME_0);
+	dev0 = device_get_binding("CDC_ACM_0");
 	if (!dev0) {
-		printf("CDC ACM device %s not found\n",
-		       CONFIG_CDC_ACM_PORT_NAME_0);
+		printf("CDC_ACM_0 device not found\n");
 		return;
 	}
 
-	dev1 = device_get_binding(CONFIG_CDC_ACM_PORT_NAME_1);
+	dev1 = device_get_binding("CDC_ACM_1");
 	if (!dev1) {
-		printf("CDC ACM device %s not found\n",
-		       CONFIG_CDC_ACM_PORT_NAME_1);
+		printf("CDC_ACM_1 device not found\n");
 		return;
 	}
 

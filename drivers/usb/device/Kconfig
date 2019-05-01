@@ -43,6 +43,7 @@ config USB_DC_STM32
 
 config USB_DC_SAM0
 	bool "SAM0 series USB Device Controller driver"
+	default y
 	depends on SOC_FAMILY_SAM0
 	select USB_DEVICE_DRIVER
 	help
@@ -63,6 +64,7 @@ menuconfig USB_NRF52840
 	select USB_DEVICE_DRIVER
 	select HAS_DTS_USB
 	select NRFX_USBD
+	select USB_DEVICE_REMOTE_WAKEUP
 	help
 	  nRF52840 USB Device Controller Driver
 

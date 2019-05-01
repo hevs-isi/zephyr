@@ -7,6 +7,8 @@
 #include <ztest.h>
 #include "test_sched.h"
 
+#ifdef CONFIG_TIMESLICING
+
 #define NUM_THREAD 3
 
 BUILD_ASSERT(NUM_THREAD <= MAX_NUM_THREAD);
@@ -34,8 +36,8 @@ static void thread_tslice(void *p1, void *p2, void *p3)
 		expected_slice_max = HALF_SLICE_SIZE;
 	} else {
 		/*other threads are sliced with tick granulity*/
-		expected_slice_min = __ticks_to_ms(_ms_to_ticks(SLICE_SIZE));
-		expected_slice_max = __ticks_to_ms(_ms_to_ticks(SLICE_SIZE)+1);
+		expected_slice_min = __ticks_to_ms(z_ms_to_ticks(SLICE_SIZE));
+		expected_slice_max = __ticks_to_ms(z_ms_to_ticks(SLICE_SIZE)+1);
 	}
 
 	#ifdef CONFIG_DEBUG
@@ -51,7 +53,7 @@ static void thread_tslice(void *p1, void *p2, void *p3)
 	/* Keep the current thread busy for more than one slice, even though,
 	 * when timeslice used up the next thread should be scheduled in.
 	 */
-	k_busy_wait(1000 * BUSY_MS);
+	spin_for_ms(BUSY_MS);
 	k_sem_give(&sema);
 }
 
@@ -118,3 +120,10 @@ void test_slice_reset(void)
 	}
 	k_thread_priority_set(k_current_get(), old_prio);
 }
+
+#else /* CONFIG_TIMESLICING */
+void test_slice_reset(void)
+{
+	ztest_test_skip();
+}
+#endif /* CONFIG_TIMESLICING */
