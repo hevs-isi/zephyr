@@ -10,3 +10,6 @@
  	pinctrl-names = "default";
     status = "ok";
  };
+ &adc1 {
+ 	status = "ok";
+ };

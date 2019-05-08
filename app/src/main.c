@@ -5,7 +5,6 @@
  */
 
 #include <zephyr.h>
-#include <logging/sys_log.h>
 #include <board_utils.h>
 #include "shell_lora.h"
 #include <kernel.h>
@@ -19,7 +18,8 @@
 #include "saved_config.h"
 #include "global.h"
 #include <sensor.h>
-
+#include "app_adc.h"
+#include "buttons.h"
 struct global_t global;
 
 #include <logging/log.h>
@@ -199,12 +199,6 @@ void main(void)
 
 	struct device *dev;
 
-	/* Disable vbat measure */
-	dev = device_get_binding(DT_GPIO_STM32_GPIOC_LABEL);
-	ret = gpio_pin_configure(dev, 0, (GPIO_DIR_IN));
-	dev = device_get_binding(DT_GPIO_STM32_GPIOA_LABEL);
-	ret = gpio_pin_configure(dev, 8, (GPIO_DIR_IN));
-
 	/* disable rx/tx radio for firmware update */
 	#if 0
 	{
@@ -228,6 +222,7 @@ void main(void)
 
 	lp_init();
 	leds_init();
+
 	psu_5v(0);
 	psu_ind(0);
 	psu_charge(1);
@@ -240,16 +235,20 @@ void main(void)
 	led0_set(0);
 	led1_set(0);
 
-	//stm32_swd_off();
-	//stm32_sleep(10000);
+	stm32_swd_off();
 	stm32_swd_on();
-	//k_sleep(3000);
-	//stm32_sleep(0);
 
 	//gps_init();
 
 	//
-	lora_on();
-	lora_init();
+	//lora_on();
+	//lora_init();
 	//lora_shell_pm();
+	adc_init();
+	//buttons_init();
+	for (;;)
+	{
+		//adc_test();
+		k_sleep(1000);
+	}
 }

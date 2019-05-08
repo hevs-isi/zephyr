@@ -94,6 +94,9 @@ void lora_init()
 
 	k_work_init(&lmsg.work, lora_msg_send);
 
+	// im881 modules comes from factory as class C devices, this must be set
+	wimod_lorawan_set_rstack_config();
+
 	wimod_lorawan_join_network_request(join_callback);
 
 	disable_uart();

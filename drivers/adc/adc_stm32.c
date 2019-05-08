@@ -515,6 +515,8 @@ static int adc_stm32_init(struct device *dev)
 #endif
 	LL_ADC_Enable(adc);
 #ifdef CONFIG_SOC_SERIES_STM32L4X
+	/* FIXME : enable VDDA measure */
+	LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(), LL_ADC_PATH_INTERNAL_VREFINT);
 	/* Refer to the description of ADRDY in reference manual. */
 	u32_t countTimeout = 0;
 

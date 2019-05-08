@@ -252,6 +252,7 @@ void pin_setup(void)
 
 void saved_config_init(void)
 {
+	#if 0
 	struct saved_config_t config;
 	struct saved_config_t config_backup;
 	int ret;
@@ -317,4 +318,5 @@ void saved_config_init(void)
 
 	LOG_INF("boot count : %"PRIu32, config.boot_count);
 	LOG_DBG("config revision : %"PRIu32, config.revision);
+	#endif 
 }

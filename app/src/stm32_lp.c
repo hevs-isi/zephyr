@@ -146,9 +146,9 @@ static const struct pin_config pinconf[] = {
 	{STM32_PIN_PB15, INPUT_PULL_UP},
 
 	{STM32_PIN_PC0 , INPUT_NOPULL},
-	{STM32_PIN_PC1 , INPUT_PULL_DOWN},
-	{STM32_PIN_PC2 , INPUT_PULL_DOWN},
-	{STM32_PIN_PC3 , INPUT_PULL_DOWN},
+	{STM32_PIN_PC1 , INPUT_NOPULL},
+	{STM32_PIN_PC2 , INPUT_NOPULL},
+	{STM32_PIN_PC3 , INPUT_NOPULL},
 	{STM32_PIN_PC4 , INPUT_PULL_DOWN},
 	{STM32_PIN_PC5 , INPUT_PULL_DOWN},
 	{STM32_PIN_PC6 , INPUT_PULL_DOWN},
@@ -204,10 +204,8 @@ void lp_init(void)
 
 	time_t now = counter_read(counter_dev);
 	ctime_r(&now, buf);
-	//strcpy(buf, "lskdjfla");
 
 	LOG_INF("Sytem date:%s", &buf[0]);
-
 }
 
 enum power_states sys_suspend(s32_t ticks)

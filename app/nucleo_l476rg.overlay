@@ -27,6 +27,10 @@
 	};
 };
 
+&adc1 {
+	status = "ok";
+};
+
 / {
 	leds {
 		compatible = "gpio-leds";
