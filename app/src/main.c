@@ -92,6 +92,11 @@ static u32_t expiry(const struct periodic_timer_t *t, u32_t now)
 	return x;
 }
 
+static u32_t next_timer_value(uint32_t now, uint32_t period, uint32_t pr)
+{
+	return (((now / period) + 1) * period) + (pr % period);
+}
+
 static u32_t expired(const struct periodic_timer_t *t, u32_t now)
 {
 	return (now - t->next) > 0 && t->enable;
@@ -105,7 +110,7 @@ static u32_t expired_restart(struct periodic_timer_t *t, u32_t now)
 	{
 		ex = 1;
 
-		t-> next = ((now / t->period) + 1) * t->period;
+		t->next = next_timer_value(now, t->period, 0);
 	}
 
 	return ex;
@@ -113,17 +118,31 @@ static u32_t expired_restart(struct periodic_timer_t *t, u32_t now)
 
 static void restart_psnr(struct periodic_timer_t *t, u32_t now, u32_t pr)
 {
-	t->next = (((now / t->period) + 1) * t->period) + (pr % t->period);
+	t->next = next_timer_value(now, t->period, pr);
 }
 
-static struct periodic_timer_t measure_timer =
+static struct periodic_timer_t measure_timer_a =
 {
 	.next = 0,
 	.period = 5*60,
 	.enable = 1,
 };
 
-static struct periodic_timer_t tx_timer =
+static struct periodic_timer_t measure_timer_b =
+{
+	.next = 0,
+	.period = 10*60,
+	.enable = 1,
+};
+
+static struct periodic_timer_t tx_timer_a =
+{
+	.next = 0,
+	.period = 15*60,
+	.enable = 1,
+};
+
+static struct periodic_timer_t tx_timer_b =
 {
 	.next = 0,
 	.period = 15*60,
@@ -133,15 +152,33 @@ static struct periodic_timer_t tx_timer =
 static struct periodic_timer_t sync_timer =
 {
 	.next = 0,
+	.period = 6*60*60,
+	.enable = 1,
+};
+
+static struct periodic_timer_t charge_timer =
+{
+	.next = 0,
+	.period = 10*60,
+	.enable = 1,
+};
+
+static struct periodic_timer_t info_timer =
+{
+	.next = 0,
 	.period = 12*60*60,
 	.enable = 1,
 };
 
 static const struct periodic_timer_t *timers[] =
 {
-	&measure_timer,
-	&tx_timer,
+	&measure_timer_a,
+	&measure_timer_b,
+	&tx_timer_a,
+	&tx_timer_b,
+	&charge_timer,
 	&sync_timer,
+	&info_timer,
 };
 
 static u32_t expiry_min(const struct periodic_timer_t **ts, size_t nr, u32_t now)
@@ -161,25 +198,52 @@ static u32_t expiry_min(const struct periodic_timer_t **ts, size_t nr, u32_t now
 	return min;
 }
 
-static void tick(u32_t now)
+static void init_timer(struct periodic_timer_t *m, struct periodic_timer_t *t, const struct sensor_config_t *c)
 {
-	u32_t last_measure_ts = 0;
+	m->enable = c->enable;
+	m->period = c->period;
+	t->enable = c->enable;
+	t->period = c->period*c->tx_period;
+}
 
-	if (expired_restart(&measure_timer, now))
+static void init_from_config(const struct saved_config_t *c)
+{
+	init_timer(&measure_timer_a, &tx_timer_a, &c->a);
+	init_timer(&measure_timer_b, &tx_timer_b, &c->b);
+}
+
+static uint32_t prng(uint32_t next, const uint8_t *devaddr, size_t size)
+{
+	u8_t data[sizeof(next+size)];
+	memcpy(&data[0], devaddr, size);
+	memcpy(&data[size], &next, sizeof(next));
+	return crc32_ieee(data, sizeof(data));
+}
+
+static uint32_t tick(uint32_t now)
+{
+	u8_t devaddr[6] = {1,2,3,4,5,6}; // FIMXE
+
+	if (expired_restart(&measure_timer_a, now))
 	{
 		// FIXME do the measure
-		last_measure_ts = now;
 	}
 
-	if (expired(&tx_timer, now))
+	if (expired_restart(&measure_timer_b, now))
+	{
+		// FIXME do the measure
+	}
+
+	if (expired(&tx_timer_a, now))
 	{
 		// FIXME do the TX
-		u8_t devaddr[6] = {1,2,3,4,5,6}; // FIMXE
-		u8_t data[10];
-		memcpy(&data[0], devaddr, sizeof(devaddr));
-		memcpy(&data[6], &last_measure_ts, sizeof(last_measure_ts));
-		u32_t pr = crc32_ieee(data, sizeof(data));
-		restart_psnr(&tx_timer, now, pr);
+		restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr)));
+	}
+
+	if (expired(&tx_timer_b, now))
+	{
+		// FIXME do the TX
+		restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr)));
 	}
 
 	if (expired_restart(&sync_timer, now))
@@ -187,7 +251,17 @@ static void tick(u32_t now)
 		// FIXME request time or do gps sync
 	}
 
-	u32_t sleep = expiry_min(timers, ARRAY_SIZE(timers), now);
+	if (expired_restart(&charge_timer, now))
+	{
+		// FIXME request time or do gps sync
+	}
+
+	if (expired_restart(&info_timer, now))
+	{
+		// FIXME request time or do gps sync
+	}
+
+	return expiry_min(timers, ARRAY_SIZE(timers), now);
 }
 
 
@@ -221,6 +295,7 @@ void main(void)
 	*/
 
 	lp_init();
+	lp_sleep_prevent();
 	leds_init();
 
 	psu_5v(0);
@@ -241,14 +316,42 @@ void main(void)
 	//gps_init();
 
 	//
-	//lora_on();
-	//lora_init();
+	lora_on();
+	lora_init();
 	//lora_shell_pm();
 	adc_init();
-	//buttons_init();
+	buttons_init();
+
+	uint32_t sleep_prevent_duration = 0;
+	uint32_t sleep_seconds = 10;
+
 	for (;;)
 	{
-		//adc_test();
-		k_sleep(1000);
+		if (global.sleep_prevent == 1)
+		{
+			global.sleep_prevent = 0;
+			sleep_prevent_duration = 60;
+		}
+
+		if (global.sleep_permit == 1)
+		{
+			global.sleep_permit = 0;
+			sleep_prevent_duration = 0;
+		}
+
+		//tick(now);
+
+		if (sleep_prevent_duration > 0)
+		{
+			led0_set(1);
+			sleep_prevent_duration--;
+			k_sleep(10);
+			led0_set(0);
+			k_sleep(990);
+		}
+		else
+		{
+			stm32_sleep(sleep_seconds);
+		}
 	}
 }

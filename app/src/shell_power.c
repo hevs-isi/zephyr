@@ -10,6 +10,11 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(shell_power, LOG_LEVEL_INF);
 
+static void shell_connected(const struct shell *shell)
+{
+	lp_sleep_prevent();
+	shell_log_backend_enable(shell->log_backend, (void *)shell, LOG_LEVEL_DBG);
+}
 
 static int shell_sleep(const struct shell *shell, size_t argc, char *argv[])
 {
@@ -48,7 +53,7 @@ static int shell_off(const struct shell *shell, size_t argc, char *argv[])
 
 static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 {
-	ARG_UNUSED(argv);
+	shell_connected(shell);
 
 	if (argc > 1)
 	{
@@ -93,6 +98,8 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 
 static int shell_swd(const struct shell *shell, size_t argc, char *argv[])
 {
+	shell_connected(shell);
+
 	int enable;
 
 	if (argc <= 1)
@@ -128,11 +135,22 @@ static int shell_swd(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+static int shell_quit(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	lp_sleep_permit();
+
+	return 0;
+}
+
 SHELL_CREATE_STATIC_SUBCMD_SET(power_sub)
 {
 	SHELL_CMD_ARG(sleep, NULL, "sleep [ms]", shell_sleep, 0, 0),
 	SHELL_CMD_ARG(rtc, NULL, "setup rtc date/time", shell_rtc, 0, 1),
 	SHELL_CMD_ARG(swd, NULL, "[0/1]disable or enable swd pins", shell_swd, 2, 0),
+	SHELL_CMD_ARG(quit, NULL, "re-enable power save mode", shell_quit, 0, 0),
 
 	SHELL_CMD_ARG(off, NULL, "no help", shell_off, 0, 0),
 	SHELL_CMD_ARG(on, NULL, "no help", shell_on, 0, 0),

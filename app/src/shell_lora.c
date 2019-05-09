@@ -15,6 +15,7 @@ LOG_MODULE_REGISTER(shell_lora, LOG_LEVEL_DBG);
 #endif
 #include "lora.h"
 #include "shell_lora.h"
+#include "stm32_lp.h"
 
 void lora_shell_pm(void)
 {
@@ -25,6 +26,7 @@ void lora_shell_pm(void)
 
 static void shell_connected(const struct shell *shell)
 {
+	lp_sleep_prevent();
 	shell_log_backend_enable(shell->log_backend, (void *)shell, LOG_LEVEL_DBG);
 }
 

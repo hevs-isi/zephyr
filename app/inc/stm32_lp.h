@@ -14,6 +14,8 @@ void psu_ind(u32_t enable);
 void psu_charge(u32_t enable);
 void psu_cpu_hp(u32_t enable);
 void lp_init(void);
+void lp_sleep_prevent(void);
+void lp_sleep_permit(void);
 
 #ifdef __cplusplus
 }

@@ -15,6 +15,8 @@
 struct global_t
 {
 	u8_t lora_TokenReq;
+	volatile u32_t sleep_prevent;
+	volatile u32_t sleep_permit;
 };
 
 #ifdef __cplusplus

@@ -8,6 +8,8 @@
 #include <pinmux/stm32/pinmux_stm32.h>
 #include <time.h>
 #include <gpio.h>
+#include "stm32_lp.h"
+#include "global.h"
 
 LOG_MODULE_REGISTER(lp, LOG_LEVEL_DBG);
 
@@ -269,4 +271,14 @@ void psu_cpu_hp(u32_t enable)
 void sys_resume(void)
 {
 
+}
+
+void lp_sleep_prevent(void)
+{
+	global.sleep_prevent = 1;
+}
+
+void lp_sleep_permit(void)
+{
+	global.sleep_permit = 1;
 }

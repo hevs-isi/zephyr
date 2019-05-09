@@ -7,10 +7,12 @@
 LOG_MODULE_REGISTER(buttons, LOG_LEVEL_DBG);
 
 #include "buttons.h"
+#include "global.h"
+#include "stm32_lp.h"
 
 static void button_pressed(struct device *gpiob, struct gpio_callback *cb, u32_t pins)
 {
-	//printk("Button pressed at %d\n", k_cycle_get_32());
+	lp_sleep_prevent();
 }
 
 static struct gpio_callback cb[2];
@@ -50,7 +52,6 @@ static void button_init(const char *port, uint32_t pin, struct gpio_callback *cb
 
 void buttons_init(void)
 {
-	printk("haha\n");
 	button_init(DT_GPIO_STM32_GPIOB_LABEL, 15, &cb[0]);
 	button_init(DT_GPIO_STM32_GPIOC_LABEL, 11, &cb[1]);
 }

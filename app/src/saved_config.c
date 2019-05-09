@@ -108,7 +108,7 @@ int saved_config_save(struct saved_config_t *config)
 	int failed = 0;
 
 	LOG_DBG("saved_config_save");
-	config->revision++;
+	config->changes++;
 	config->crc = crc(config);
 
 	for (size_t i = 0; i < NR_CONFIG_BACKUP; i++)
@@ -187,7 +187,7 @@ int saved_config_read(struct saved_config_t *config)
 			break;
 
 			default:
-				LOG_INF("config[%zu] unknown revision", i);
+				LOG_INF("config[%zu] unknown changes", i);
 				invalid = 1;
 				continue;
 			break;
@@ -198,15 +198,15 @@ int saved_config_read(struct saved_config_t *config)
 			LOG_INF("config[%zu] valid", i);
 			valid = 1;
 			*config = tmp;
-			latest = tmp.revision;
+			latest = tmp.changes;
 			continue;
 		}
 
-		if (latest - tmp.revision > 0)
+		if (latest - tmp.changes > 0)
 		{
-			LOG_INF("config[%zu] valid, revision:%"PRIu32, i, tmp.revision);
+			LOG_INF("config[%zu] valid, changes:%"PRIu32, i, tmp.changes);
 			*config = tmp;
-			latest = tmp.revision;
+			latest = tmp.changes;
 		}
 	}
 
@@ -252,7 +252,6 @@ void pin_setup(void)
 
 void saved_config_init(void)
 {
-	#if 0
 	struct saved_config_t config;
 	struct saved_config_t config_backup;
 	int ret;
@@ -297,7 +296,7 @@ void saved_config_init(void)
 
 	config.boot_count++;
 	config_backup = config;
-	config_backup.revision++;
+	config_backup.changes++;
 
 	ret = saved_config_save(&config);
 	if (ret)
@@ -316,7 +315,6 @@ void saved_config_init(void)
 		LOG_ERR("config save/load failed");
 	}
 
-	LOG_INF("boot count : %"PRIu32, config.boot_count);
-	LOG_DBG("config revision : %"PRIu32, config.revision);
-	#endif 
+	LOG_INF("boot count : %"PRIu32" - changes : %"PRIu32, config.boot_count, config.changes);
+	LOG_INF("sizeof(struct config_t) : %"PRIu32" (free: %"PRIu32")", (uint32_t)sizeof(config), (uint32_t)sizeof(config._reserved));
 }
