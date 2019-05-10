@@ -10,6 +10,7 @@
 #include <kernel.h>
 #include <device.h>
 #include "stm32_lp.h"
+#include <counter.h>
 
 #include <string.h>
 
@@ -20,7 +21,25 @@
 #include <sensor.h>
 #include "app_adc.h"
 #include "buttons.h"
-struct global_t global;
+#include <wimod_lorawan_api.h>
+
+struct global_t global =
+{
+	.lora_TokenReq	= 0,
+	.sleep_prevent	= 0,
+	.sleep_permit	= 0,
+	.config_changed	= 0,
+	.led0			=
+	{
+		.t_on_ms = 10,
+		.t_off_ms = 990,
+	},
+	.led1			=
+	{
+		.t_on_ms = 10,
+		.t_off_ms = 320,
+	},
+};
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
@@ -33,26 +52,27 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 #include <gpio.h>
 #include <crc.h>
 
+static struct device *led0_dev;
+static struct device *led1_dev;
+
 static void leds_init(void)
 {
-	struct device *led0_dev = device_get_binding(LED0_GPIO_CONTROLLER);
-	struct device *led1_dev = device_get_binding(LED1_GPIO_CONTROLLER);
+	led0_dev = device_get_binding(LED0_GPIO_CONTROLLER);
+	led1_dev = device_get_binding(LED1_GPIO_CONTROLLER);
 	gpio_pin_configure(led0_dev, LED0_GPIO_PIN, GPIO_DIR_OUT);
 	gpio_pin_configure(led1_dev, LED1_GPIO_PIN, GPIO_DIR_OUT);
 
-	gpio_pin_write(led0_dev, LED0_GPIO_PIN, 1);
-	gpio_pin_write(led1_dev, LED1_GPIO_PIN, 1);
+	gpio_pin_write(led0_dev, LED0_GPIO_PIN, 0);
+	gpio_pin_write(led1_dev, LED1_GPIO_PIN, 0);
 }
 
-static void led0_set(u32_t value)
+static void led0_set(uint32_t value)
 {
-	struct device *led0_dev = device_get_binding(LED0_GPIO_CONTROLLER);
 	gpio_pin_write(led0_dev, LED0_GPIO_PIN, value);
 }
 
-static void led1_set(u32_t value)
+static void led1_set(uint32_t value)
 {
-	struct device *led1_dev = device_get_binding(LED1_GPIO_CONTROLLER);
 	gpio_pin_write(led1_dev, LED1_GPIO_PIN, value);
 }
 
@@ -64,65 +84,77 @@ static void led1_set(u32_t value)
 #include <uart.h>
 #include <clock_control.h>
 
-#include <linker/sections.h>
-#include <clock_control/stm32_clock_control.h>
-#include "../drivers/serial/uart_stm32.h"
-#define DEV_CFG(dev)							\
-	((const struct uart_stm32_config * const)(dev)->config->config_info)
-#define DEV_DATA(dev)							\
-	((struct uart_stm32_data * const)(dev)->driver_data)
-#define UART_STRUCT(dev)					\
-	((USART_TypeDef *)(DEV_CFG(dev))->uconf.base)
-
 struct periodic_timer_t
 {
-	u32_t next;
-	u32_t period;
-	u32_t enable;
+	const char *name;
+	uint32_t next;
+	uint32_t period;
+	uint32_t enable;
+	uint32_t configured;
 };
 
-static u32_t expiry(const struct periodic_timer_t *t, u32_t now)
+static uint32_t expired(const struct periodic_timer_t *t, uint32_t now)
 {
-	u32_t x = now - t->next;
-	if (x > INT32_MAX)
+	int32_t delta = (t->next - now);
+
+	if (t->enable && t->configured)
+	{
+		//LOG_DBG("timer:%s now:%"PRIu32" next:%"PRIu32" delta:%"PRId32, t->name, now, t->next, delta);
+	}
+
+	return (delta < 0) && t->enable && t->configured;
+}
+
+static uint32_t expiry(const struct periodic_timer_t *t, uint32_t now)
+{
+	int32_t delta = (t->next - now);
+
+	if (!t->enable)
+	{
+		return INT32_MAX;
+	}
+
+	if (expired(t, now))
 	{
 		return 0;
 	}
 
-	return x;
+	return delta;
 }
 
-static u32_t next_timer_value(uint32_t now, uint32_t period, uint32_t pr)
+static uint32_t next_timer_value(uint32_t now, uint32_t period, uint32_t pr)
 {
 	return (((now / period) + 1) * period) + (pr % period);
 }
 
-static u32_t expired(const struct periodic_timer_t *t, u32_t now)
+static uint32_t expired_restart_psnr(struct periodic_timer_t *t, uint32_t now, uint32_t pr)
 {
-	return (now - t->next) > 0 && t->enable;
-}
-
-static u32_t expired_restart(struct periodic_timer_t *t, u32_t now)
-{
-	u32_t ex = 0;
+	uint32_t ex = 0;
 
 	if (expired(t, now))
 	{
 		ex = 1;
+	}
 
-		t->next = next_timer_value(now, t->period, 0);
+	if (ex == 1 || (t->enable && t->configured == 0))
+	{
+		t->next = next_timer_value(now, t->period, pr);
+		int32_t delta = (t->next - now);
+		LOG_DBG("%s next:%"PRIu32" delta:%"PRId32, t->name, t->next, delta);
+		t->configured = 1;
 	}
 
 	return ex;
 }
 
-static void restart_psnr(struct periodic_timer_t *t, u32_t now, u32_t pr)
+static uint32_t expired_restart(struct periodic_timer_t *t, uint32_t now)
 {
-	t->next = next_timer_value(now, t->period, pr);
+	return expired_restart_psnr(t, now, 0);
 }
 
 static struct periodic_timer_t measure_timer_a =
 {
+	.name = "measure_timer_a",
 	.next = 0,
 	.period = 5*60,
 	.enable = 1,
@@ -130,6 +162,7 @@ static struct periodic_timer_t measure_timer_a =
 
 static struct periodic_timer_t measure_timer_b =
 {
+	.name = "measure_timer_b",
 	.next = 0,
 	.period = 10*60,
 	.enable = 1,
@@ -137,6 +170,7 @@ static struct periodic_timer_t measure_timer_b =
 
 static struct periodic_timer_t tx_timer_a =
 {
+	.name = "tx_timer_a",
 	.next = 0,
 	.period = 15*60,
 	.enable = 1,
@@ -144,6 +178,7 @@ static struct periodic_timer_t tx_timer_a =
 
 static struct periodic_timer_t tx_timer_b =
 {
+	.name = "tx_timer_b",
 	.next = 0,
 	.period = 15*60,
 	.enable = 1,
@@ -151,6 +186,7 @@ static struct periodic_timer_t tx_timer_b =
 
 static struct periodic_timer_t sync_timer =
 {
+	.name = "sync_timer",
 	.next = 0,
 	.period = 6*60*60,
 	.enable = 1,
@@ -158,6 +194,7 @@ static struct periodic_timer_t sync_timer =
 
 static struct periodic_timer_t charge_timer =
 {
+	.name = "charge_timer",
 	.next = 0,
 	.period = 10*60,
 	.enable = 1,
@@ -165,12 +202,13 @@ static struct periodic_timer_t charge_timer =
 
 static struct periodic_timer_t info_timer =
 {
+	.name = "info_timer",
 	.next = 0,
-	.period = 12*60*60,
+	.period = 12/*60*60*/,
 	.enable = 1,
 };
 
-static const struct periodic_timer_t *timers[] =
+struct periodic_timer_t *timers[] =
 {
 	&measure_timer_a,
 	&measure_timer_b,
@@ -181,13 +219,13 @@ static const struct periodic_timer_t *timers[] =
 	&info_timer,
 };
 
-static u32_t expiry_min(const struct periodic_timer_t **ts, size_t nr, u32_t now)
+static uint32_t expiry_min(struct periodic_timer_t **ts, size_t nr, uint32_t now)
 {
-	u32_t min = INT32_MAX;
+	uint32_t min = INT32_MAX;
 
 	for (int i = 0 ; i < nr ; i++)
 	{
-		u32_t ex = expiry(ts[i], now);
+		uint32_t ex = expiry(ts[i], now);
 
 		if (ex < min)
 		{
@@ -202,8 +240,10 @@ static void init_timer(struct periodic_timer_t *m, struct periodic_timer_t *t, c
 {
 	m->enable = c->enable;
 	m->period = c->period;
+	m->configured = 0;
 	t->enable = c->enable;
 	t->period = c->period*c->tx_period;
+	t->configured = 0;
 }
 
 static void init_from_config(const struct saved_config_t *c)
@@ -212,106 +252,216 @@ static void init_from_config(const struct saved_config_t *c)
 	init_timer(&measure_timer_b, &tx_timer_b, &c->b);
 }
 
+static void all_timers_now(uint32_t now)
+{
+	for (size_t i = 0 ; i < ARRAY_SIZE(timers);i++)
+	{
+		if (timers[i]->enable)
+		{
+			timers[i]->next = now + 10;
+			timers[i]->configured = 1;
+		}
+	}
+}
+
 static uint32_t prng(uint32_t next, const uint8_t *devaddr, size_t size)
 {
-	u8_t data[sizeof(next+size)];
+	u8_t data[sizeof(next)+size];
 	memcpy(&data[0], devaddr, size);
 	memcpy(&data[size], &next, sizeof(next));
 	return crc32_ieee(data, sizeof(data));
 }
 
+static int measure(const struct sensor_config_t *c, uint32_t *value, uint32_t nr)
+{
+	int ret = 0;
+	*value = UINT32_MAX;
+
+	switch((enum psu_e)c->psu)
+	{
+		case PSU_5V:
+			LOG_DBG("measure using PSU_5V");
+			psu_5v(1);
+		break;
+
+		case PSU_INDUS:
+			LOG_DBG("measure using PSU_INDUS");
+			psu_ind(1);
+		break;
+
+		case PSU_NONE:
+			LOG_DBG("measure without PSU");
+		default:
+			LOG_DBG("c->psu invalid");
+			ret = -ENOTSUP;
+	}
+
+	LOG_DBG("wait %"PRIu32" ms", c->wakeup_ms);
+	k_sleep(c->wakeup_ms);
+
+	switch((enum mode_e)c->mode)
+	{
+		case MODE_0_10V:
+			*value = adc_measure_sensor(nr);
+			LOG_DBG("measure ch%"PRIu32" : %"PRIu32" mV", nr, *value);
+		break;
+
+		default:
+		LOG_ERR("not yet implemented : sensor_config->mode : %"PRIu8, c->mode);
+		ret = -ENOTSUP;
+		goto end_mes;
+	}
+
+end_mes:
+	switch((enum psu_e)c->psu)
+	{
+		case PSU_5V:
+			psu_5v(0);
+		break;
+
+		case PSU_INDUS:
+			psu_ind(0);
+		break;
+
+		case PSU_NONE:
+		default:
+		break;
+	}
+
+	return ret;
+}
+
 static uint32_t tick(uint32_t now)
 {
 	u8_t devaddr[6] = {1,2,3,4,5,6}; // FIMXE
+	int ret;
+	uint32_t value0;
+	uint32_t value1;
 
 	if (expired_restart(&measure_timer_a, now))
 	{
-		// FIXME do the measure
+		LOG_DBG("expired:measure_timer_a");
+		ret = measure(&global.config.a, &value0, 0);
 	}
 
 	if (expired_restart(&measure_timer_b, now))
 	{
-		// FIXME do the measure
+		LOG_DBG("expired:measure_timer_b");
+		ret = measure(&global.config.b, &value1, 1);
 	}
 
-	if (expired(&tx_timer_a, now))
+	if (expired_restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr))))
 	{
-		// FIXME do the TX
-		restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr)));
+		LOG_DBG("expired:tx_timer_a");
+		wimod_lorawan_send_u_radio_data(1, &value0, sizeof(value0));
+		k_sleep(2*1000);
 	}
 
-	if (expired(&tx_timer_b, now))
+	if (expired_restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr))))
 	{
-		// FIXME do the TX
-		restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr)));
+		LOG_DBG("expired:tx_timer_b");
+		wimod_lorawan_send_u_radio_data(2, &value1, sizeof(value1));
+		k_sleep(2*1000);
 	}
 
-	if (expired_restart(&sync_timer, now))
+	if (expired_restart_psnr(&sync_timer, now, prng(sync_timer.next, devaddr, sizeof(devaddr))))
 	{
-		// FIXME request time or do gps sync
+		LOG_DBG("expired:sync_timer");
+		lora_time_AppTimeReq(0);
+		k_sleep(2*1000);
 	}
 
 	if (expired_restart(&charge_timer, now))
 	{
-		// FIXME request time or do gps sync
+		LOG_DBG("expired:charge_timer");
+		k_sleep(2000);
 	}
 
-	if (expired_restart(&info_timer, now))
+	if (expired_restart_psnr(&info_timer, now, prng(info_timer.next, devaddr, sizeof(devaddr))))
 	{
-		// FIXME request time or do gps sync
+		LOG_DBG("expired:info_timer");
+		k_sleep(2000);
 	}
+	uint32_t sleep = expiry_min(timers, ARRAY_SIZE(timers), now);
 
-	return expiry_min(timers, ARRAY_SIZE(timers), now);
+	return sleep;
+}
+#define STACKSIZE 1024
+
+void led0_thread(void *u1, void *u2, void *u3)
+{
+	ARG_UNUSED(u1);
+	ARG_UNUSED(u2);
+	ARG_UNUSED(u3);
+
+	for(;;)
+	{
+		if (global.led0.t_on_ms)
+		{
+			led0_set(1);
+			k_sleep(global.led0.t_on_ms);
+		}
+		led0_set(0);
+		k_sleep(global.led0.t_off_ms);
+	}
 }
 
-
-void main(void)
+void led1_thread(void *u1, void *u2, void *u3)
 {
-	int ret;
+	ARG_UNUSED(u1);
+	ARG_UNUSED(u2);
+	ARG_UNUSED(u3);
 
-	LOG_DBG("main");
-
-	struct device *dev;
-
-	/* disable rx/tx radio for firmware update */
-	#if 0
+	for(;;)
 	{
-		dev = device_get_binding(DT_GPIO_STM32_GPIOA_LABEL);
-		ret = gpio_pin_configure(dev, 9, (GPIO_DIR_IN));
-		if (ret) {
-			printk("Error configuring pin PA%d!\n", 9);
+		if (global.led1.t_on_ms)
+		{
+			led1_set(1);
+			k_sleep(global.led1.t_on_ms);
 		}
-		ret = gpio_pin_configure(dev, 10, (GPIO_DIR_IN));
-		if (ret) {
-			printk("Error configuring pin PA%d!\n", 10);
-		}
+		led1_set(0);
+		k_sleep(global.led1.t_off_ms);
 	}
-	#endif
+}
 
-	/*
-	USART_TypeDef *UartInstance = UART_STRUCT(device_get_binding("UART_2"));
+static K_THREAD_DEFINE(led0_thread_id, STACKSIZE, led0_thread, NULL, NULL,
+	NULL, 1, 0, K_FOREVER);
+static K_THREAD_DEFINE(led1_thread_id, STACKSIZE, led1_thread, NULL, NULL,
+	NULL, 1, 0, K_FOREVER);
 
-	printk("UART_2->BRR:%"PRIu32"\n", UartInstance->BRR);
-	*/
+void app_main(void *u1, void *u2, void *u3)
+{
+	ARG_UNUSED(u1);
+	ARG_UNUSED(u2);
+	ARG_UNUSED(u3);
+
+	struct device *rtc = device_get_binding(DT_RTC_0_NAME);
 
 	lp_init();
 	lp_sleep_prevent();
 	leds_init();
 
+	k_thread_start(led0_thread_id);
+	k_thread_suspend(led0_thread_id);
+	k_thread_start(led1_thread_id);
+	k_thread_suspend(led1_thread_id);
+	led0_set(0);
+	led1_set(0);
+
 	psu_5v(0);
 	psu_ind(0);
-	psu_charge(1);
+	psu_charge(0);
 	psu_cpu_hp(1);
 	saved_config_init();
+	saved_config_read(&global.config);
+	init_from_config(&global.config);
+	all_timers_now(counter_read(rtc));
 	gps_off();
 
 	lora_off();
 
-	led0_set(0);
-	led1_set(0);
-
-	stm32_swd_off();
-	stm32_swd_on();
+	//stm32_swd_off();
+	//stm32_swd_on();
 
 	//gps_init();
 
@@ -323,14 +473,23 @@ void main(void)
 	buttons_init();
 
 	uint32_t sleep_prevent_duration = 0;
-	uint32_t sleep_seconds = 10;
+	uint32_t sleep_seconds = 0;
 
 	for (;;)
 	{
+		uint32_t now = counter_read(rtc);
+
+		if (!sleep_prevent_duration)
+		{
+			LOG_INF("now:%"PRIu32, now);
+		}
+
 		if (global.sleep_prevent == 1)
 		{
+			LOG_INF("wakeup!");
 			global.sleep_prevent = 0;
 			sleep_prevent_duration = 60;
+			k_thread_resume(led0_thread_id);
 		}
 
 		if (global.sleep_permit == 1)
@@ -339,19 +498,37 @@ void main(void)
 			sleep_prevent_duration = 0;
 		}
 
-		//tick(now);
+		if (global.config_changed == 1)
+		{
+			global.config_changed = 0;
+			saved_config_save(&global.config);
+			init_from_config(&global.config);
+		}
+
+		k_thread_resume(led1_thread_id);
+		sleep_seconds = tick(now);
+		k_thread_suspend(led1_thread_id);
+		led1_set(0);
 
 		if (sleep_prevent_duration > 0)
 		{
-			led0_set(1);
 			sleep_prevent_duration--;
-			k_sleep(10);
-			led0_set(0);
-			k_sleep(990);
+			LOG_DBG("sleep_prevent_duration : %"PRIu32" seconds", sleep_prevent_duration);
+			k_sleep(1000);
 		}
 		else
 		{
-			stm32_sleep(sleep_seconds);
+			k_thread_suspend(led0_thread_id);
+			led0_set(0);
+			led1_set(0);
+			if (sleep_seconds)
+			{
+				LOG_DBG("sleep : %"PRIu32" seconds", sleep_seconds);
+				stm32_sleep(1000*sleep_seconds);
+			}
 		}
 	}
 }
+
+K_THREAD_DEFINE(app_main_id, 4*STACKSIZE, app_main, NULL, NULL,
+		NULL, 2, 0, K_NO_WAIT);

@@ -11,7 +11,7 @@
 #include "stm32_lp.h"
 #include "global.h"
 
-LOG_MODULE_REGISTER(lp, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(lp, LOG_LEVEL_INF);
 
 #define ALARM_CHANNEL_ID 0
 
@@ -191,7 +191,7 @@ void stm32_swd_on(void)
 }
 
 
-char buf[40];
+static char buf[40];
 
 void lp_init(void)
 {

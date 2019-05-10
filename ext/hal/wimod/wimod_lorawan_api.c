@@ -407,8 +407,9 @@ int wimod_lorawan_set_rstack_config()
 //
 //------------------------------------------------------------------------------
 
-int wimod_lorawan_send_u_radio_data(u8_t port, const u8_t* src_data, int src_length)
+int wimod_lorawan_send_u_radio_data(u8_t port, const void* _src_data, int src_length)
 {
+    const u8_t* src_data = (const u8_t*)_src_data;
     // 1. check length
     if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
     {
@@ -440,8 +441,10 @@ int wimod_lorawan_send_u_radio_data(u8_t port, const u8_t* src_data, int src_len
 //
 //------------------------------------------------------------------------------
 
-int wimod_lorawan_send_c_radio_data(u8_t  port, const u8_t* src_data, int src_length)
+int wimod_lorawan_send_c_radio_data(u8_t port, const void* _src_data, int src_length)
 {
+    const u8_t* src_data = (const u8_t*)_src_data;
+
     // 1. check length
     if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
     {

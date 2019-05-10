@@ -155,15 +155,27 @@ uint16_t adc_measure_charger(void)
 	return mes(&sequence[4]);
 }
 
-uint16_t adc_measure_sensor0(void)
+static uint16_t adc_measure_sensor0(void)
 {
 	return mes(&sequence[2]);
 }
 
-uint16_t adc_measure_sensor1(void)
+static uint16_t adc_measure_sensor1(void)
 {
 	return mes(&sequence[3]);
 }
+
+uint16_t adc_measure_sensor(uint32_t sensor)
+{
+	switch (sensor)
+	{
+		case 0: return adc_measure_sensor0();
+		case 1: return adc_measure_sensor0();
+		default:
+		return UINT16_MAX;
+	}
+}
+
 
 void adc_init(void)
 {

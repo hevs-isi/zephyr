@@ -13,8 +13,7 @@ void adc_test(void);
 
 uint16_t adc_measure_vbat(void);
 uint16_t adc_measure_charger(void);
-uint16_t adc_measure_sensor0(void);
-uint16_t adc_measure_sensor1(void);
+uint16_t adc_measure_sensor(uint32_t sensor);
 
 #ifdef __cplusplus
 }

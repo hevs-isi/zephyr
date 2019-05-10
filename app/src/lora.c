@@ -90,7 +90,7 @@ void lora_init()
 	wimod_lorawan_init();
 
 	k_work_q_start(&lora_msg_work_q, lora_msg_stack,
-		   K_THREAD_STACK_SIZEOF(lora_msg_stack), K_PRIO_PREEMPT(0));
+		   K_THREAD_STACK_SIZEOF(lora_msg_stack), K_PRIO_PREEMPT(3));
 
 	k_work_init(&lmsg.work, lora_msg_send);
 
@@ -140,7 +140,7 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 {
 	struct device *counter_dev;
 	counter_dev = device_get_binding(DT_RTC_0_NAME);
-	u32_t time = counter_read(counter_dev);
+	u32_t time = counter_read(counter_dev)+315964800;
 
 	u8_t TokenReq = global.lora_TokenReq;
 	global.lora_TokenReq++;

@@ -149,7 +149,7 @@ static int saved_config_read_nr(u8_t nr, struct saved_config_t *config)
 	return eeprom_read(szconfig * nr, (u8_t *)config, sizeof(*config));
 }
 
-void saved_config_default(struct saved_config_t *config)
+static void saved_config_default(struct saved_config_t *config)
 {
 	memset(config, 0x0, sizeof(*config));
 	config->version = 1;
@@ -317,4 +317,66 @@ void saved_config_init(void)
 
 	LOG_INF("boot count : %"PRIu32" - changes : %"PRIu32, config.boot_count, config.changes);
 	LOG_INF("sizeof(struct config_t) : %"PRIu32" (free: %"PRIu32")", (uint32_t)sizeof(config), (uint32_t)sizeof(config._reserved));
+}
+
+const struct sensor_config_t default_off =
+{
+	.enable		= 0,
+	.psu		= 0,
+	.mode		= 0,
+	.tx_mode	= 0,
+	.period		= 0,
+	.wakeup_ms	= 0,
+	.tx_period	= 0,
+};
+
+const struct sensor_config_t default_indus_pressure =
+{
+	.enable		= 1,
+	.psu		= PSU_INDUS,
+	.mode		= MODE_0_10V,
+	.tx_mode	= TX_MODE_LAST,
+	.period		= 10*60,
+	.wakeup_ms	= 1000,
+	.tx_period	= 1,
+};
+
+const struct sensor_config_t default_indus_flow =
+{
+	.enable		= 1,
+	.psu		= PSU_INDUS,
+	.mode		= MODE_0_10V,
+	.tx_mode	= TX_MODE_LAST,
+	.period		= 10*60,
+	.wakeup_ms	= 1000,
+	.tx_period	= 1,
+};
+
+void saved_config_predef(struct saved_config_t *config, enum saved_config_predef_e pre)
+{
+	switch (pre)
+	{
+		case SC_DEFAULT_INDUS_1:
+			config->a = default_indus_pressure;
+			config->b = default_off;
+		break;
+
+		case SC_DEFAULT_INDUS_2:
+			config->a = default_indus_pressure;
+			config->b = default_indus_flow;
+		break;
+
+		case SC_DEFAULT_INDUS_1_FAST:
+			config->a = default_indus_pressure;
+			config->a.period = 30;
+			config->b = default_off;
+		break;
+
+		case SC_DEFAULT_INDUS_2_FAST:
+			config->a = default_indus_pressure;
+			config->a.period = 30;
+			config->b = default_indus_flow;
+			config->b.period = 30;
+		break;
+	}
 }

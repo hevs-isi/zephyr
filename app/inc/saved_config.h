@@ -58,6 +58,16 @@ void saved_config_init(void);
 int saved_config_read(struct saved_config_t *config);
 int saved_config_save(struct saved_config_t *config);
 
+enum saved_config_predef_e
+{
+	SC_DEFAULT_INDUS_1	= 0x00,
+	SC_DEFAULT_INDUS_2	= 0x01,
+	SC_DEFAULT_INDUS_1_FAST	= 0x02,
+	SC_DEFAULT_INDUS_2_FAST	= 0x03,
+};
+
+void saved_config_predef(struct saved_config_t *config, enum saved_config_predef_e pre);
+
 #ifdef __cplusplus
 }
 #endif

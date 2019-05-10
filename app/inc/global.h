@@ -12,11 +12,23 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H
 
+#include "saved_config.h"
+
+struct led_t
+{
+	uint32_t t_on_ms;
+	uint32_t t_off_ms;
+};
+
 struct global_t
 {
 	u8_t lora_TokenReq;
 	volatile u32_t sleep_prevent;
 	volatile u32_t sleep_permit;
+	struct saved_config_t config;
+	volatile uint32_t config_changed;
+	struct led_t led0;
+	struct led_t led1;
 };
 
 #ifdef __cplusplus
