@@ -3,9 +3,10 @@
 
 #include <logging/log.h>
 #include <device.h>
-#include <counter.h>
 #include "global.h"
 #include <pinmux/stm32/pinmux_stm32.h>
+#include <misc/byteorder.h>
+#include "app_rtc.h"
 
 LOG_MODULE_REGISTER(lora, LOG_LEVEL_DBG);
 
@@ -138,23 +139,22 @@ void lora_on()
 
 void lora_time_AppTimeReq(u8_t AnsRequired)
 {
-	struct device *counter_dev;
-	counter_dev = device_get_binding(DT_RTC_0_NAME);
-	u32_t time = counter_read(counter_dev)+315964800;
+	u32_t time = app_rtc_get();
+
+	// unix ts to gps
+	time += 315964800;
+
+	// little endian protocol
+	time = sys_cpu_to_le32(time);
 
 	u8_t TokenReq = global.lora_TokenReq;
 	global.lora_TokenReq++;
 	global.lora_TokenReq&=0xf;
 
-	const u8_t data[] =
-	{
-		0x01, // cid
-		time >> 24,
-		time >> 16,
-		time >> 8,
-		time >> 0,
-		(AnsRequired ? (1 << 4) : 0) | (TokenReq & 0x1f)
-	};
+	u8_t data[6];
+	data[0] = 0x01; // cid
+	memcpy(&data[1], &time, sizeof(time));
+	data[5] = (AnsRequired ? (1 << 4) : 0) | (TokenReq & 0x1f);
 
 	wimod_lorawan_send_u_radio_data(202, data, sizeof(data));
 }

@@ -348,7 +348,7 @@ const struct sensor_config_t default_indus_flow =
 	.mode		= MODE_0_10V,
 	.tx_mode	= TX_MODE_LAST,
 	.period		= 10*60,
-	.wakeup_ms	= 1000,
+	.wakeup_ms	= 15*1000,
 	.tx_period	= 1,
 };
 
