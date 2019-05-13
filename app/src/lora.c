@@ -154,7 +154,7 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 	u8_t data[6];
 	data[0] = 0x01; // cid
 	memcpy(&data[1], &time, sizeof(time));
-	data[5] = (AnsRequired ? (1 << 4) : 0) | (TokenReq & 0x1f);
+	data[5] = (AnsRequired ? (1 << 4) : 0) | (TokenReq & 0xf);
 
 	wimod_lorawan_send_u_radio_data(202, data, sizeof(data));
 }
