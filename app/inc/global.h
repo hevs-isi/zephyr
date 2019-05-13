@@ -27,6 +27,7 @@ struct global_t
 	volatile u32_t sleep_permit;
 	struct saved_config_t config;
 	volatile uint32_t config_changed;
+	volatile uint32_t rtc_reset;
 	struct led_t led0;
 	struct led_t led1;
 };

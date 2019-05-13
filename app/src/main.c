@@ -10,7 +10,6 @@
 #include <kernel.h>
 #include <device.h>
 #include "stm32_lp.h"
-#include <counter.h>
 
 #include <string.h>
 
@@ -20,6 +19,7 @@
 #include "global.h"
 #include <sensor.h>
 #include "app_adc.h"
+#include "app_rtc.h"
 #include "buttons.h"
 #include <wimod_lorawan_api.h>
 
@@ -333,6 +333,8 @@ end_mes:
 
 static uint32_t tick(uint32_t now)
 {
+	/* FIXME : wait for end of TX, or schedule TX far appart */
+	uint32_t RADIO_TIMEOUT = (10*1000);
 	u8_t devaddr[6] = {1,2,3,4,5,6}; // FIMXE
 	int ret;
 	uint32_t value0;
@@ -354,33 +356,34 @@ static uint32_t tick(uint32_t now)
 	{
 		LOG_DBG("expired:tx_timer_a");
 		wimod_lorawan_send_u_radio_data(1, &value0, sizeof(value0));
-		k_sleep(2*1000);
+		k_sleep(RADIO_TIMEOUT);
 	}
 
 	if (expired_restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr))))
 	{
 		LOG_DBG("expired:tx_timer_b");
 		wimod_lorawan_send_u_radio_data(2, &value1, sizeof(value1));
-		k_sleep(2*1000);
+		k_sleep(RADIO_TIMEOUT);
 	}
 
 	if (expired_restart_psnr(&sync_timer, now, prng(sync_timer.next, devaddr, sizeof(devaddr))))
 	{
 		LOG_DBG("expired:sync_timer");
 		lora_time_AppTimeReq(0);
-		k_sleep(2*1000);
+		k_sleep(RADIO_TIMEOUT);
 	}
 
 	if (expired_restart(&charge_timer, now))
 	{
 		LOG_DBG("expired:charge_timer");
-		k_sleep(2000);
+		// FIXME : measure battery temp
+		psu_charge(1);
 	}
 
 	if (expired_restart_psnr(&info_timer, now, prng(info_timer.next, devaddr, sizeof(devaddr))))
 	{
 		LOG_DBG("expired:info_timer");
-		k_sleep(2000);
+		k_sleep(RADIO_TIMEOUT);
 	}
 	uint32_t sleep = expiry_min(timers, ARRAY_SIZE(timers), now);
 
@@ -435,8 +438,6 @@ void app_main(void *u1, void *u2, void *u3)
 	ARG_UNUSED(u2);
 	ARG_UNUSED(u3);
 
-	struct device *rtc = device_get_binding(DT_RTC_0_NAME);
-
 	lp_init();
 	lp_sleep_prevent();
 	leds_init();
@@ -455,7 +456,8 @@ void app_main(void *u1, void *u2, void *u3)
 	saved_config_init();
 	saved_config_read(&global.config);
 	init_from_config(&global.config);
-	all_timers_now(counter_read(rtc));
+	app_rtc_init();
+	all_timers_now(app_rtc_get());
 	gps_off();
 
 	lora_off();
@@ -477,7 +479,7 @@ void app_main(void *u1, void *u2, void *u3)
 
 	for (;;)
 	{
-		uint32_t now = counter_read(rtc);
+		uint32_t now = app_rtc_get();
 
 		if (!sleep_prevent_duration)
 		{
@@ -503,6 +505,12 @@ void app_main(void *u1, void *u2, void *u3)
 			global.config_changed = 0;
 			saved_config_save(&global.config);
 			init_from_config(&global.config);
+		}
+
+		if (global.rtc_reset == 1)
+		{
+			init_from_config(&global.config);
+			all_timers_now();
 		}
 
 		k_thread_resume(led1_thread_id);

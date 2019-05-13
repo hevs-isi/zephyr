@@ -2,8 +2,8 @@
 #include <shell/shell.h>
 #include <stdlib.h>
 #include <device.h>
-#include <counter.h>
 #include "stm32_lp.h"
+#include "app_rtc.h"
 
 #if CONFIG_SHELL
 
@@ -55,43 +55,53 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 {
 	shell_connected(shell);
 
-	if (argc > 1)
+	char *endptr;
+	u32_t now;
+
+	if (argc != 2)
 	{
-		int ret;
+		shell_error(shell, "arguments?");
+		return -EINVAL;
+	}
+	now = strtol(argv[1], &endptr, 0);
 
-		shell_print(shell, "init rtc");
-
-		LL_RTC_TimeTypeDef rtc_time;
-		LL_RTC_DateTypeDef rtc_date;
-		LL_RTC_TIME_StructInit(&rtc_time);
-		LL_RTC_DATE_StructInit(&rtc_date);
-		rtc_time.Hours		= 23U;
-		rtc_time.Minutes	= 59U;
-		rtc_time.Seconds	= 50U;
-		rtc_date.WeekDay	= LL_RTC_WEEKDAY_MONDAY;
-		rtc_date.Day    	= 28U;
-		rtc_date.Month  	= 2U;
-		rtc_date.Year   	= 19U;
-
-		ret = LL_RTC_TIME_Init(RTC, LL_RTC_FORMAT_BIN, &rtc_time);
-		if (ret)
-		{
-			shell_warn(shell, "LL_RTC_TIME_Init:%d", ret);
-		}
-
-		ret = LL_RTC_DATE_Init(RTC, LL_RTC_FORMAT_BIN, &rtc_date);
-		if (ret)
-		{
-			shell_warn(shell, "LL_RTC_DATE_Init:%d", ret);
-		}
-
+	if (endptr == argv[1])
+	{
+		shell_error(shell, "error parsing  argv[1] : '%s'", argv[1]);
+		return -EINVAL;
 	}
 
-	struct device *counter_dev;
+	int ret;
 
-	counter_dev = device_get_binding(DT_RTC_0_NAME);
+	shell_print(shell, "init rtc");
 
-	shell_print(shell, "rtc:%"PRIu32, counter_read(counter_dev));
+	LL_RTC_TimeTypeDef rtc_time;
+	LL_RTC_DateTypeDef rtc_date;
+	LL_RTC_TIME_StructInit(&rtc_time);
+	LL_RTC_DATE_StructInit(&rtc_date);
+	rtc_time.Hours		= 23U;
+	rtc_time.Minutes	= 59U;
+	rtc_time.Seconds	= 50U;
+	rtc_date.WeekDay	= LL_RTC_WEEKDAY_MONDAY;
+	rtc_date.Day    	= 28U;
+	rtc_date.Month  	= 2U;
+	rtc_date.Year   	= 19U;
+
+	ret = LL_RTC_TIME_Init(RTC, LL_RTC_FORMAT_BIN, &rtc_time);
+	if (ret)
+	{
+		shell_warn(shell, "LL_RTC_TIME_Init:%d", ret);
+	}
+
+	ret = LL_RTC_DATE_Init(RTC, LL_RTC_FORMAT_BIN, &rtc_date);
+	if (ret)
+	{
+		shell_warn(shell, "LL_RTC_DATE_Init:%d", ret);
+	}
+
+	app_rtc_set(now);
+
+	shell_print(shell, "rtc:%"PRIu32, app_rtc_get());
 
 	return 0;
 }

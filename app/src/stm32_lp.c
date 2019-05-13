@@ -6,7 +6,6 @@
 #include <counter.h>
 #include <logging/log.h>
 #include <pinmux/stm32/pinmux_stm32.h>
-#include <time.h>
 #include <gpio.h>
 #include "stm32_lp.h"
 #include "global.h"
@@ -190,9 +189,6 @@ void stm32_swd_on(void)
 	stm32_setup_pins(pinconf_swd_on, ARRAY_SIZE(pinconf_swd_on));
 }
 
-
-static char buf[40];
-
 void lp_init(void)
 {
 	stm32_setup_pins(pinconf, ARRAY_SIZE(pinconf));
@@ -203,11 +199,6 @@ void lp_init(void)
 
 	counter_dev = device_get_binding(DT_RTC_0_NAME);
 	counter_start(counter_dev);
-
-	time_t now = counter_read(counter_dev);
-	ctime_r(&now, buf);
-
-	LOG_INF("Sytem date:%s", &buf[0]);
 }
 
 enum power_states sys_suspend(s32_t ticks)

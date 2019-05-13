@@ -49,7 +49,8 @@ struct saved_config_t
 	uint32_t changes;
 	struct sensor_config_t a;
 	struct sensor_config_t b;
-	uint8_t _reserved[2*64-(16+2*sizeof(struct sensor_config_t))];
+	uint32_t rtc_offset;
+	uint8_t _reserved[2*64-(20+2*sizeof(struct sensor_config_t))];
 	uint32_t crc;
 };
 

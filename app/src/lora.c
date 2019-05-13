@@ -144,7 +144,7 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 
 	u8_t TokenReq = global.lora_TokenReq;
 	global.lora_TokenReq++;
-	global.lora_TokenReq&=0x1f;
+	global.lora_TokenReq&=0xf;
 
 	const u8_t data[] =
 	{
@@ -153,7 +153,7 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 		time >> 16,
 		time >> 8,
 		time >> 0,
-		(AnsRequired ? (1 << 5) : 0) | (TokenReq & 0x1f)
+		(AnsRequired ? (1 << 4) : 0) | (TokenReq & 0x1f)
 	};
 
 	wimod_lorawan_send_u_radio_data(202, data, sizeof(data));
