@@ -510,7 +510,7 @@ void app_main(void *u1, void *u2, void *u3)
 		if (global.rtc_reset == 1)
 		{
 			init_from_config(&global.config);
-			all_timers_now();
+			all_timers_now(app_rtc_get());
 		}
 
 		k_thread_resume(led1_thread_id);

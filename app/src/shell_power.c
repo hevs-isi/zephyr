@@ -58,11 +58,19 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 	char *endptr;
 	u32_t now;
 
+	if (argc == 1)
+	{
+		shell_print(shell, "rtc:%"PRIu32, app_rtc_get());
+		return;
+	}
+
+
 	if (argc != 2)
 	{
 		shell_error(shell, "arguments?");
 		return -EINVAL;
 	}
+
 	now = strtol(argv[1], &endptr, 0);
 
 	if (endptr == argv[1])
