@@ -14,6 +14,7 @@ void lora_on(void);
 void disable_uart(void);
 void enable_uart(void);
 void lora_time_AppTimeReq(uint8_t AnsRequired);
+void lora_send_info(void);
 
 #ifdef __cplusplus
 }

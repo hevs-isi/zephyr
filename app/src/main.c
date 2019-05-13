@@ -204,7 +204,7 @@ static struct periodic_timer_t info_timer =
 {
 	.name = "info_timer",
 	.next = 0,
-	.period = 12/*60*60*/,
+	.period = 6*60*60,
 	.enable = 1,
 };
 
@@ -376,13 +376,14 @@ static uint32_t tick(uint32_t now)
 	if (expired_restart(&charge_timer, now))
 	{
 		LOG_DBG("expired:charge_timer");
-		// FIXME : measure battery temp
+		// FIXME : measure battery temperature
 		psu_charge(1);
 	}
 
 	if (expired_restart_psnr(&info_timer, now, prng(info_timer.next, devaddr, sizeof(devaddr))))
 	{
 		LOG_DBG("expired:info_timer");
+		lora_send_info();
 		k_sleep(RADIO_TIMEOUT);
 	}
 	uint32_t sleep = expiry_min(timers, ARRAY_SIZE(timers), now);
@@ -500,11 +501,22 @@ void app_main(void *u1, void *u2, void *u3)
 			sleep_prevent_duration = 0;
 		}
 
+		k_thread_resume(led1_thread_id);
+		sleep_seconds = tick(now);
+		k_thread_suspend(led1_thread_id);
+		led1_set(0);
+
 		if (global.config_changed == 1)
 		{
 			global.config_changed = 0;
 			saved_config_save(&global.config);
 			init_from_config(&global.config);
+		}
+
+		if (global.lora_time_changed == 1)
+		{
+			global.lora_time_changed = 0;
+			app_rtc_set(app_rtc_get() - global.lora_time_delta);
 		}
 
 		if (global.rtc_reset == 1)
@@ -513,15 +525,13 @@ void app_main(void *u1, void *u2, void *u3)
 			all_timers_now(app_rtc_get());
 		}
 
-		k_thread_resume(led1_thread_id);
-		sleep_seconds = tick(now);
-		k_thread_suspend(led1_thread_id);
-		led1_set(0);
-
 		if (sleep_prevent_duration > 0)
 		{
 			sleep_prevent_duration--;
-			LOG_DBG("sleep_prevent_duration : %"PRIu32" seconds", sleep_prevent_duration);
+			if (sleep_prevent_duration % 5 == 0)
+			{
+				LOG_DBG("sleep_prevent_duration : %"PRIu32" seconds", sleep_prevent_duration);
+			}
 			k_sleep(1000);
 		}
 		else

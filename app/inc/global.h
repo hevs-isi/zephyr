@@ -28,6 +28,8 @@ struct global_t
 	struct saved_config_t config;
 	volatile uint32_t config_changed;
 	volatile uint32_t rtc_reset;
+	volatile uint32_t lora_time_delta;
+	volatile uint32_t lora_time_changed;
 	struct led_t led0;
 	struct led_t led1;
 };

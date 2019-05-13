@@ -209,4 +209,6 @@ int wimod_lorawan_get_rtc();
 int wimod_lorawan_set_rtc();
 int wimod_lorawan_get_rtc_alarm();
 
+int wimod_data_rx_handler(uint32_t port, const uint8_t *data, size_t size);
+
 #endif // WIMOD_LORAWAN_API_H

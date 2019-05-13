@@ -904,6 +904,7 @@ void wimod_lorawan_process_u_data_rx_indication(wimod_hci_message_t* rx_msg)
         for(int i = 1; i < payload_size; i++)
             LOG_DBG("%02X ", rx_msg->payload[1+i]);
         LOG_DBG("");
+        wimod_data_rx_handler(rx_msg->payload[1], &rx_msg->payload[2], payload_size-1);
     }
 
     if (rx_msg->payload[0] & 0x02)
@@ -948,6 +949,8 @@ void wimod_lorawan_process_c_data_rx_indication(wimod_hci_message_t* rx_msg)
         for(int i = 1; i < payload_size;)
             LOG_DBG("%02X ", rx_msg->payload[1+i]);
         LOG_DBG("");
+
+        wimod_data_rx_handler(rx_msg->payload[1], &rx_msg->payload[2], payload_size);
     }
 
     if (rx_msg->payload[0] & 0x02)

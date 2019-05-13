@@ -7,6 +7,7 @@
 #include <pinmux/stm32/pinmux_stm32.h>
 #include <misc/byteorder.h>
 #include "app_rtc.h"
+#include "app_adc.h"
 
 LOG_MODULE_REGISTER(lora, LOG_LEVEL_DBG);
 
@@ -142,7 +143,7 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 	u32_t time = app_rtc_get();
 
 	// unix ts to gps
-	time += 315964800;
+	time -= 315964800;
 
 	// little endian protocol
 	time = sys_cpu_to_le32(time);
@@ -157,4 +158,59 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 	data[5] = (AnsRequired ? (1 << 4) : 0) | (TokenReq & 0xf);
 
 	wimod_lorawan_send_u_radio_data(202, data, sizeof(data));
+}
+
+void lora_send_info(void)
+{
+	u32_t value = adc_measure_vbat();
+
+	// little endian protocol
+	value = sys_cpu_to_le32(value);
+
+	u8_t data[5];
+	data[0] = 0x01; // version
+	memcpy(&data[1], &value, sizeof(value));
+
+	wimod_lorawan_send_u_radio_data(3, data, sizeof(data));
+}
+
+void lora_time_AppTimeAns(const uint8_t data[5])
+{
+	uint32_t time;
+
+	memcpy(&time, data, sizeof(time));
+	time = sys_le32_to_cpu(time);
+	LOG_DBG("time delta : %"PRId32, time);
+	if (time)
+	{
+		global.lora_time_delta = time;
+		global.lora_time_changed = 1;
+	}
+}
+
+int wimod_data_rx_handler(uint32_t port, const uint8_t *data, size_t size)
+{
+	switch(port)
+	{
+		case 202:
+			if (size != 6)
+			{
+				LOG_ERR("sync:unsupported size:%zu", size);
+				break;
+			}
+
+			if (data[0] != 0x01)
+			{
+				LOG_ERR("sync:unsupported message type:%"PRIx8, data[0]);
+				break;
+			}
+
+			lora_time_AppTimeAns(data+1);
+			return 0;
+		break;
+
+		LOG_DBG("ignored message on port %"PRIu32, port);
+	}
+
+	return 1;
 }

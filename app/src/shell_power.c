@@ -4,6 +4,7 @@
 #include <device.h>
 #include "stm32_lp.h"
 #include "app_rtc.h"
+#include <time.h>
 
 #if CONFIG_SHELL
 
@@ -51,19 +52,24 @@ static int shell_off(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+static char buf[40];
+
 static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 {
 	shell_connected(shell);
 
 	char *endptr;
-	u32_t now;
+	time_t now;
 
 	if (argc == 1)
 	{
-		shell_print(shell, "rtc:%"PRIu32, app_rtc_get());
-		return;
-	}
+		now = app_rtc_get();
+		ctime_r(&now, buf);
+		shell_print(shell, "rtc:%"PRIu32, now);
+		shell_print(shell, "rtc:%s", buf);
 
+		return 0;
+	}
 
 	if (argc != 2)
 	{
@@ -110,6 +116,10 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 	app_rtc_set(now);
 
 	shell_print(shell, "rtc:%"PRIu32, app_rtc_get());
+	now = app_rtc_get();
+	ctime_r(&now, buf);
+
+	shell_print(shell, "rtc:%s", buf);
 
 	return 0;
 }

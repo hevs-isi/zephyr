@@ -34,10 +34,13 @@ uint32_t app_rtc_get(void)
 void app_rtc_set(uint32_t now)
 {
 	uint32_t offset = now-counter_read(rtc);
-	int32_t delta = offset - global.config.rtc_offset;
+	uint32_t delta = offset - global.config.rtc_offset;
+	LOG_DBG("offset = %"PRId32, offset);
+	LOG_INF("delta = %"PRId32, delta);
 
-	if (delta < -60 || delta > 60 )
+	if ((delta > 60) && (delta < UINT32_MAX - 60))
 	{
+		LOG_INF("delta > 60 !!!!");
 		global.rtc_reset = 1;
 	}
 
