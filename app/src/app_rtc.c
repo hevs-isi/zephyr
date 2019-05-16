@@ -35,6 +35,7 @@ void app_rtc_set(uint32_t now)
 {
 	uint32_t offset = now-counter_read(rtc);
 	uint32_t delta = offset - global.config.rtc_offset;
+	LOG_DBG("now = %"PRIu32, now);
 	LOG_DBG("offset = %"PRId32, offset);
 	LOG_INF("delta = %"PRId32, delta);
 

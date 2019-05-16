@@ -59,6 +59,7 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 	shell_connected(shell);
 
 	char *endptr;
+	int tmp;
 	time_t now;
 
 	if (argc == 1)
@@ -77,12 +78,18 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 		return -EINVAL;
 	}
 
-	now = strtol(argv[1], &endptr, 0);
+	tmp = strtol(argv[1], &endptr, 0);
 
 	if (endptr == argv[1])
 	{
 		shell_error(shell, "error parsing  argv[1] : '%s'", argv[1]);
 		return -EINVAL;
+	}
+
+	now = tmp;
+	if (tmp == -1)
+	{
+		now = 315964800;
 	}
 
 	int ret;

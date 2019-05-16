@@ -31,13 +31,13 @@ struct global_t global =
 	.config_changed	= 0,
 	.led0			=
 	{
-		.t_on_ms = 10,
-		.t_off_ms = 990,
+		.t_on_ms = 3,
+		.t_off_ms = 997,
 	},
 	.led1			=
 	{
-		.t_on_ms = 10,
-		.t_off_ms = 320,
+		.t_on_ms = 3,
+		.t_off_ms = 330,
 	},
 };
 
@@ -461,17 +461,10 @@ void app_main(void *u1, void *u2, void *u3)
 	all_timers_now(app_rtc_get());
 	gps_off();
 
-	lora_off();
-
-	//stm32_swd_off();
-	//stm32_swd_on();
-
 	//gps_init();
 
-	//
 	lora_on();
 	lora_init();
-	//lora_shell_pm();
 	adc_init();
 	buttons_init();
 
@@ -485,6 +478,13 @@ void app_main(void *u1, void *u2, void *u3)
 		if (!sleep_prevent_duration)
 		{
 			LOG_INF("now:%"PRIu32, now);
+		}
+
+		if (global.tx_now == 1)
+		{
+			LOG_INF("tx now!");
+			global.tx_now = 0;
+			all_timers_now(app_rtc_get());
 		}
 
 		if (global.sleep_prevent == 1)
@@ -527,12 +527,12 @@ void app_main(void *u1, void *u2, void *u3)
 
 		if (sleep_prevent_duration > 0)
 		{
-			sleep_prevent_duration--;
 			if (sleep_prevent_duration % 5 == 0)
 			{
 				LOG_DBG("sleep_prevent_duration : %"PRIu32" seconds", sleep_prevent_duration);
 			}
 			k_sleep(1000);
+			sleep_prevent_duration--;
 		}
 		else
 		{

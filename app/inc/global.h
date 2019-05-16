@@ -24,6 +24,7 @@ struct global_t
 {
 	u8_t lora_TokenReq;
 	volatile u32_t sleep_prevent;
+	volatile u32_t tx_now;
 	volatile u32_t sleep_permit;
 	struct saved_config_t config;
 	volatile uint32_t config_changed;

@@ -104,6 +104,20 @@ void lora_init()
 	disable_uart();
 }
 
+#define INPUT_NOPULL (STM32_MODER_INPUT_MODE | STM32_PUPDR_NO_PULL)
+#define INPUT_PULL_DOWN (STM32_MODER_INPUT_MODE | STM32_PUPDR_PULL_DOWN)
+#define INPUT_PULL_UP (STM32_MODER_INPUT_MODE | STM32_PUPDR_PULL_UP)
+
+static const struct pin_config pinconf_lora_uart_on[] = {
+	{STM32_PIN_PA9, STM32L4X_PINMUX_FUNC_PA9_USART1_TX},
+	{STM32_PIN_PA10, STM32L4X_PINMUX_FUNC_PA10_USART1_RX},
+};
+
+static const struct pin_config pinconf_lora_uart_off[] = {
+	{STM32_PIN_PA9, INPUT_PULL_DOWN},
+	{STM32_PIN_PA10, INPUT_PULL_DOWN},
+};
+
 void lora_off()
 {
 	int ret;
@@ -114,16 +128,8 @@ void lora_off()
 	ret = gpio_pin_configure(dev, 2, (GPIO_DIR_OUT));
 	ret = gpio_pin_write(dev, 2, 0);
 
-	/* configure uart pins as inputs */
-	dev = device_get_binding(DT_GPIO_STM32_GPIOA_LABEL);
-	ret = gpio_pin_configure(dev, 9, (GPIO_DIR_IN));
-	ret = gpio_pin_configure(dev, 10, (GPIO_DIR_IN));
+	stm32_setup_pins(pinconf_lora_uart_off, ARRAY_SIZE(pinconf_lora_uart_off));
 }
-
-static const struct pin_config pinconf_lora_uart[] = {
-	{STM32_PIN_PA9, STM32L4X_PINMUX_FUNC_PA9_USART1_TX},
-	{STM32_PIN_PA10, STM32L4X_PINMUX_FUNC_PA10_USART1_RX},
-};
 
 void lora_on()
 {
@@ -135,7 +141,7 @@ void lora_on()
 	ret = gpio_pin_configure(dev, 2, (GPIO_DIR_OUT));
 	ret = gpio_pin_write(dev, 2, 1);
 
-	stm32_setup_pins(pinconf_lora_uart, ARRAY_SIZE(pinconf_lora_uart));
+	stm32_setup_pins(pinconf_lora_uart_on, ARRAY_SIZE(pinconf_lora_uart_on));
 }
 
 void lora_time_AppTimeReq(u8_t AnsRequired)

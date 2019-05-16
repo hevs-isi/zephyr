@@ -10,14 +10,29 @@ LOG_MODULE_REGISTER(buttons, LOG_LEVEL_DBG);
 #include "global.h"
 #include "stm32_lp.h"
 
-static void button_pressed(struct device *gpiob, struct gpio_callback *cb, u32_t pins)
+static void button1_handler(struct device *gpio, struct gpio_callback *cb, u32_t pins)
 {
-	lp_sleep_prevent();
+	u32_t value;
+	gpio_pin_read(gpio, 11, &value);
+	if (!value)
+	{
+		global.tx_now = 1;
+	}
+}
+
+static void button2_handler(struct device *gpio, struct gpio_callback *cb, u32_t pins)
+{
+	u32_t value;
+	gpio_pin_read(gpio, 15, &value);
+	if (!value)
+	{
+		lp_sleep_prevent();
+	}
 }
 
 static struct gpio_callback cb[2];
 
-static void button_init(const char *port, uint32_t pin, struct gpio_callback *cb)
+static void button_init(const char *port, uint32_t pin, struct gpio_callback *cb, void(*handler)(struct device *gpio, struct gpio_callback *cb, u32_t pins))
 {
 	struct device *dev;
 	int ret;
@@ -35,7 +50,7 @@ static void button_init(const char *port, uint32_t pin, struct gpio_callback *cb
 		LOG_DBG("gpio_pin_configure failed:%d", ret);
 	}
 
-	gpio_init_callback(cb, button_pressed, BIT(pin));
+	gpio_init_callback(cb, handler, BIT(pin));
 
 	ret = gpio_add_callback(dev, cb);
 	if (ret)
@@ -52,6 +67,6 @@ static void button_init(const char *port, uint32_t pin, struct gpio_callback *cb
 
 void buttons_init(void)
 {
-	button_init(DT_GPIO_STM32_GPIOB_LABEL, 15, &cb[0]);
-	button_init(DT_GPIO_STM32_GPIOC_LABEL, 11, &cb[1]);
+	button_init(DT_GPIO_STM32_GPIOC_LABEL, 11, &cb[0], button1_handler);
+	button_init(DT_GPIO_STM32_GPIOB_LABEL, 15, &cb[1], button2_handler);
 }

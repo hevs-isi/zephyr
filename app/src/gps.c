@@ -163,27 +163,19 @@ void gps_init(void)
 
 }
 
+#define INPUT_NOPULL (STM32_MODER_INPUT_MODE | STM32_PUPDR_NO_PULL)
+#define INPUT_PULL_DOWN (STM32_MODER_INPUT_MODE | STM32_PUPDR_PULL_DOWN)
+#define INPUT_PULL_UP (STM32_MODER_INPUT_MODE | STM32_PUPDR_PULL_UP)
+
+static const struct pin_config pinconf_gps_off[] = {
+	{STM32_PIN_PA12, INPUT_NOPULL},
+	{STM32_PIN_PC12, INPUT_PULL_DOWN},
+	{STM32_PIN_PC13, INPUT_PULL_DOWN},
+	{STM32_PIN_PC4, INPUT_NOPULL},
+	{STM32_PIN_PC5, INPUT_NOPULL},
+};
+
 void gps_off(void)
 {
-	int ret;
-	struct device *dev;
-
-	/* Power off gps backup */
-	dev = device_get_binding(DT_GPIO_STM32_GPIOA_LABEL);
-	ret = gpio_pin_configure(dev, 12, (GPIO_DIR_OUT));
-	ret = gpio_pin_write(dev, 12, 0);
-
-	/* Power off gps module */
-	dev = device_get_binding(DT_GPIO_STM32_GPIOC_LABEL);
-	ret = gpio_pin_configure(dev, 13, (GPIO_DIR_OUT));
-	ret = gpio_pin_write(dev, 13, 0);
-
-	/* Disable uart pins */
-	dev = device_get_binding(DT_GPIO_STM32_GPIOC_LABEL);
-	ret = gpio_pin_configure(dev, 4, (GPIO_DIR_IN));
-	ret = gpio_pin_configure(dev, 5, (GPIO_DIR_IN));
-
-	/* Disable PPS pin */
-	dev = device_get_binding(DT_GPIO_STM32_GPIOC_LABEL);
-	ret = gpio_pin_configure(dev, 12, (GPIO_DIR_IN));
+	stm32_setup_pins(pinconf_gps_off, ARRAY_SIZE(pinconf_gps_off));
 }
