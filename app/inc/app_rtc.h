@@ -9,6 +9,7 @@ extern "C"
 int app_rtc_init(void);
 uint32_t app_rtc_get(void);
 void app_rtc_set(uint32_t now);
+int app_rtc_ok(void);
 
 #ifdef __cplusplus
 }

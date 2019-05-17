@@ -516,7 +516,7 @@ void app_main(void *u1, void *u2, void *u3)
 		if (global.lora_time_changed == 1)
 		{
 			global.lora_time_changed = 0;
-			app_rtc_set(app_rtc_get() - global.lora_time_delta);
+			app_rtc_set(app_rtc_get() + global.lora_time_delta);
 		}
 
 		if (global.rtc_reset == 1)

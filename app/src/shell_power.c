@@ -66,7 +66,7 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 	{
 		now = app_rtc_get();
 		ctime_r(&now, buf);
-		shell_print(shell, "rtc:%"PRIu32, now);
+		shell_print(shell, "rtc:%"PRIu64, now);
 		shell_print(shell, "rtc:%s", buf);
 
 		return 0;

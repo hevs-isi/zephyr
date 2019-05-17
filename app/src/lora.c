@@ -144,33 +144,12 @@ void lora_on()
 	stm32_setup_pins(pinconf_lora_uart_on, ARRAY_SIZE(pinconf_lora_uart_on));
 }
 
-void lora_time_AppTimeReq(u8_t AnsRequired)
-{
-	u32_t time = app_rtc_get();
-
-	// unix ts to gps
-	time -= 315964800;
-
-	// little endian protocol
-	time = sys_cpu_to_le32(time);
-
-	u8_t TokenReq = global.lora_TokenReq;
-	global.lora_TokenReq++;
-	global.lora_TokenReq&=0xf;
-
-	u8_t data[6];
-	data[0] = 0x01; // cid
-	memcpy(&data[1], &time, sizeof(time));
-	data[5] = (AnsRequired ? (1 << 4) : 0) | (TokenReq & 0xf);
-
-	wimod_lorawan_send_u_radio_data(202, data, sizeof(data));
-}
-
 void lora_send_info(void)
 {
-	u32_t value = adc_measure_vbat();
+	uint32_t value = adc_measure_vbat();
 
 	// little endian protocol
+	LOG_DBG("value:%"PRIu32, value);
 	value = sys_cpu_to_le32(value);
 
 	u8_t data[5];
@@ -180,12 +159,52 @@ void lora_send_info(void)
 	wimod_lorawan_send_u_radio_data(3, data, sizeof(data));
 }
 
+void lora_time_AppTimeReq(u8_t AnsRequired)
+{
+	uint32_t time = app_rtc_get();
+
+	// unix ts to gps
+	time -= 315964800;
+
+	LOG_DBG("time_gps:%"PRIu32, time);
+	LOG_DBG("time_net:0x%"PRIx32, time);
+
+	LOG_DBG("time:0x%"PRIx32, time);
+	time = sys_cpu_to_le32(time);
+	LOG_DBG("time_net:0x%"PRIx32, time);
+
+	global.lora_TokenReq++;
+	global.lora_TokenReq&=0xf;
+
+	u8_t data[6];
+	data[0] = 0x01; // cid
+	memcpy(&data[1], &time, sizeof(time));
+	data[5] = (AnsRequired ? (1 << 4) : 0) | (global.lora_TokenReq & 0xf);
+
+	wimod_lorawan_send_u_radio_data(202, data, sizeof(data));
+}
+
 void lora_time_AppTimeAns(const uint8_t data[5])
 {
 	uint32_t time;
 
+	uint8_t token = data[4] & 0xf;
+
+	if (token != global.lora_TokenReq)
+	{
+		LOG_DBG("ignoring:request token:0x%"PRIx8", answer token:0x%"PRIx8, global.lora_TokenReq, token);
+		return;
+	}
+	else
+	{
+		LOG_DBG("ok:request token:0x%"PRIx8", answer token:0x%"PRIx8, global.lora_TokenReq, token);
+	}
+
 	memcpy(&time, data, sizeof(time));
+
+	LOG_DBG("time_net:0x%"PRIx32, time);
 	time = sys_le32_to_cpu(time);
+	LOG_DBG("time:0x%"PRIx32, time);
 	LOG_DBG("time delta : %"PRId32, time);
 	if (time)
 	{

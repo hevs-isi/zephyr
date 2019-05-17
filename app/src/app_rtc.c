@@ -16,14 +16,38 @@ static char buf[40];
 
 int app_rtc_init(void)
 {
+	int ok;
 	rtc = device_get_binding(DT_RTC_0_NAME);
+
+	ok = app_rtc_ok();
 
 	time_t now = app_rtc_get();
 	ctime_r(&now, buf);
 
-	LOG_INF("Sytem date:%s", &buf[0]);
+	if (ok)
+	{
+		LOG_INF("Sytem date:%s", &buf[0]);
+	}
+	else
+	{
+		LOG_ERR("Wrong sytem date:%s", &buf[0]);
+	}
 
-	return global.config.rtc_offset != 0;
+	return !ok;
+}
+
+int app_rtc_ok(void)
+{
+	time_t now = app_rtc_get();
+	struct tm tm;
+	gmtime_r(&now, &tm);
+
+	if (tm.tm_year < 2019)
+	{
+		return 0;
+	}
+
+	return 1;
 }
 
 uint32_t app_rtc_get(void)
