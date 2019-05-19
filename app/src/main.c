@@ -302,7 +302,7 @@ static int measure(const struct sensor_config_t *c, uint32_t *value, uint32_t nr
 	switch((enum mode_e)c->mode)
 	{
 		case MODE_0_10V:
-			*value = adc_measure_sensor(nr);
+			*value = adc_measure_sensor(nr)*100/18;
 			LOG_DBG("measure ch%"PRIu32" : %"PRIu32" mV", nr, *value);
 		break;
 
@@ -452,8 +452,8 @@ void app_main(void *u1, void *u2, void *u3)
 
 	psu_5v(0);
 	psu_ind(0);
-	psu_charge(0);
-	psu_cpu_hp(1);
+	psu_charge(1);
+	psu_cpu_hp(0);
 	saved_config_init();
 	saved_config_read(&global.config);
 	init_from_config(&global.config);

@@ -238,15 +238,25 @@ void psu_ind(u32_t enable)
 	ret = gpio_pin_write(dev, 14, enable);
 }
 
+static const struct pin_config pinconf_charge_on[] = {
+	{STM32_PIN_PB13, INPUT_NOPULL},
+};
+
 void psu_charge(u32_t enable)
 {
 	int ret;
 	struct device *dev;
 
-	/* Power off gps backup */
-	dev = device_get_binding(DT_GPIO_STM32_GPIOB_LABEL);
-	ret = gpio_pin_configure(dev, 13, (GPIO_DIR_OUT));
-	ret = gpio_pin_write(dev, 13, enable);
+	if (enable)
+	{
+		stm32_setup_pins(pinconf_charge_on, ARRAY_SIZE(pinconf_charge_on));
+	}
+	else
+	{
+		dev = device_get_binding(DT_GPIO_STM32_GPIOB_LABEL);
+		ret = gpio_pin_configure(dev, 13, (GPIO_DIR_OUT));
+		ret = gpio_pin_write(dev, 13, 0);
+	}
 }
 
 void psu_cpu_hp(u32_t enable)
