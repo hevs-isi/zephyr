@@ -29,9 +29,9 @@ up to and including the **Bootstrap west** step.
 
 1. Use west to clone this directory into `~/git/loraiot`:
     ```
-    mkdir -p ~/git/loraiot
-    cd ~/git/loraiot
-    west init -m ssh://git@github.com:/hevs-isi/LoRaIOT.git
+    mkdir -p ~/git
+    cd ~/git
+    west init -m https://github.com/hevs-isi/zephyr.git loraiot # or git@github.com:hevs-isi/zephyr.git if you have write access
     cd zephyr/
     west update
     ```
@@ -39,7 +39,7 @@ up to and including the **Bootstrap west** step.
     ```
     cd ~/git/loraiot/zephyr
     git fetch --all
-    git checkout --track origin/lora_shell
+    git checkout --track origin/watermon-adc
     ```
 
 ## Testing the zephyr install
