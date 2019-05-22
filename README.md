@@ -9,6 +9,8 @@ up to and including the **Bootstrap west** step.
 
 1. install some more tools:
     ```
+    # Build tools
+    sudo apt-get install -y build-essential
     # For the tests and CodingStyle
     sudo apt-get install -y lcov uncrustify
     # For the building the documentation:
