@@ -152,7 +152,7 @@ void lora_send_info(void)
 	LOG_DBG("value:%"PRIu32, value);
 	value = sys_cpu_to_le32(value);
 
-	u8_t data[5];
+	u8_t data[1+sizeof(uint32_t)+sizeof(uint32_t)];
 	data[0] = 0x01; // version
 	memcpy(&data[1], &value, sizeof(value));
 

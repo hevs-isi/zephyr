@@ -62,6 +62,8 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 	int tmp;
 	time_t now;
 
+	LOG_DBG("argc:%d", argc);
+
 	if (argc == 1)
 	{
 		now = app_rtc_get();
@@ -87,8 +89,13 @@ static int shell_rtc(const struct shell *shell, size_t argc, char *argv[])
 	}
 
 	now = tmp;
+	if (tmp == 0)
+	{
+		LOG_DBG("set time to 0 UNIX epoch");
+	}
 	if (tmp == -1)
 	{
+		LOG_DBG("set time to 0 GPS epoch");
 		now = 315964800;
 	}
 

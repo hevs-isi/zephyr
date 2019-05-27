@@ -376,8 +376,14 @@ static uint32_t tick(uint32_t now)
 	if (expired_restart(&charge_timer, now))
 	{
 		LOG_DBG("expired:charge_timer");
-		// FIXME : measure battery temperature
-		psu_charge(1);
+		if (1 /* FIXME : measure battery temperature, disable when < 0°C */)
+		{
+			psu_charge(1);
+		}
+		else
+		{
+			psu_charge(0);
+		}
 	}
 
 	if (expired_restart_psnr(&info_timer, now, prng(info_timer.next, devaddr, sizeof(devaddr))))
