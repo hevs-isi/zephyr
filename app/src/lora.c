@@ -146,15 +146,18 @@ void lora_on()
 
 void lora_send_info(void)
 {
-	uint32_t value = adc_measure_vbat();
+	uint32_t vbat = adc_measure_vbat();
+	uint32_t vin = adc_measure_charger();
 
 	// little endian protocol
-	LOG_DBG("value:%"PRIu32, value);
-	value = sys_cpu_to_le32(value);
+	LOG_DBG("value:%"PRIu32, vbat);
+	vbat = sys_cpu_to_le32(vbat);
+	vin = sys_cpu_to_le32(vin);
 
-	u8_t data[1+sizeof(uint32_t)+sizeof(uint32_t)];
-	data[0] = 0x01; // version
-	memcpy(&data[1], &value, sizeof(value));
+	u8_t data[1+sizeof(vbat)+sizeof(vin)];
+	data[0] = 0x02; // version
+	memcpy(&data[1], &vbat, sizeof(vbat));
+	memcpy(&data[5], &vin, sizeof(vin));
 
 	wimod_lorawan_send_u_radio_data(3, data, sizeof(data));
 }

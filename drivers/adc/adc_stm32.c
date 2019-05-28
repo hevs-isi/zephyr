@@ -421,6 +421,9 @@ static int adc_stm32_channel_setup(struct device *dev,
 		LOG_ERR("Differential channels are not supported");
 		return -EINVAL;
 	}
+	struct adc_stm32_cfg *config = (struct adc_stm32_cfg *)dev->config->config_info;
+	ADC_TypeDef *adc = config->base;
+	LL_ADC_SetChannelSingleDiff(adc, channel_cfg->channel_id, ADC_SINGLE_ENDED);
 
 	if (channel_cfg->gain != ADC_GAIN_1) {
 		LOG_ERR("Invalid channel gain");

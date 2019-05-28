@@ -204,7 +204,7 @@ static struct periodic_timer_t info_timer =
 {
 	.name = "info_timer",
 	.next = 0,
-	.period = 6*60*60,
+	.period = 60*60,
 	.enable = 1,
 };
 

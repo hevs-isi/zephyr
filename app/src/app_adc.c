@@ -92,6 +92,9 @@ static const struct pin_config pinconf[] =
 	{STM32_PIN_PC3, STM32L4X_PINMUX_FUNC_PC3_ADC123_IN4},
 };
 
+// FIXME : problem reading adc channels
+static uint32_t offset[ARRAY_SIZE(pinconf)];
+
 static uint16_t vdda_mv(uint16_t data)
 {
 	return (uint32_t)3000*(*VREFINT_CAL_ADDR)/data;
@@ -127,14 +130,24 @@ static uint16_t mes_mv(uint16_t ref, uint16_t in)
 
 static struct device *adc_dev;
 
-static uint16_t mes(const struct adc_sequence *s)
+static uint16_t mes(uint32_t nr)
 {
 	uint16_t reference;
 	uint16_t in;
 	adc_read(adc_dev, &sequence[0]);
 	reference = adc_data[0];
-	adc_read(adc_dev, s);
+	adc_read(adc_dev, &sequence[nr]);
 	in = adc_data[0];
+
+	// prevent overflow
+	if (in - offset[nr] > in)
+	{
+		in = 0;
+	}
+	else
+	{
+		in -= offset[nr];
+	}
 	LOG_DBG("ref:%"PRIu16" in: %"PRIu16, reference, in);
 	return mes_mv(reference, in);
 }
@@ -145,24 +158,24 @@ uint16_t adc_measure_vbat(void)
 	struct device *pin = device_get_binding(DT_GPIO_STM32_GPIOA_LABEL);
 	gpio_pin_configure(pin, 8, (GPIO_DIR_OUT));
 	gpio_pin_write(pin, 8, 0);
-	tmp = mes(&sequence[1]);
+	tmp = mes(1);
 	gpio_pin_configure(pin, 8, (GPIO_DIR_IN));
 	return tmp*133/33;
 }
 
 uint16_t adc_measure_charger(void)
 {
-	return mes(&sequence[4]);
+	return mes(4);
 }
 
 static uint16_t adc_measure_sensor0(void)
 {
-	return mes(&sequence[2]);
+	return mes(2);
 }
 
 static uint16_t adc_measure_sensor1(void)
 {
-	return mes(&sequence[3]);
+	return mes(3);
 }
 
 uint16_t adc_measure_sensor(uint32_t sensor)
@@ -189,7 +202,16 @@ void adc_init(void)
 		adc_channel_setup(adc_dev, &channel_cfg[i]);
 	}
 
-	adc_read(adc_dev, &sequence[0]);
+	memset(offset, 0x0, sizeof(offset));
+	adc_read(adc_dev, &sequence[2]);
+	offset[2] = adc_data[0];
+	adc_read(adc_dev, &sequence[3]);
+	offset[3] = adc_data[0];
+	for (size_t i = 0; i < ARRAY_SIZE(offset); i++)
+	{
+		LOG_DBG("offset[%d]:%d", (int)i, (int)offset[i]);
+	}
+
 	LOG_INF("VREFINT_DATA=%"PRIu16", VDDA=%"PRIu16, *VREFINT_CAL_ADDR, vdda_mv(adc_data[0]));
 }
 
