@@ -212,6 +212,7 @@ void adc_init(void)
 		LOG_DBG("offset[%d]:%d", (int)i, (int)offset[i]);
 	}
 
+	adc_read(adc_dev, &sequence[0]);
 	LOG_INF("VREFINT_DATA=%"PRIu16", VDDA=%"PRIu16, *VREFINT_CAL_ADDR, vdda_mv(adc_data[0]));
 }
 
