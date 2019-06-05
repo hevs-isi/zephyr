@@ -1,11 +1,9 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
+/**
+ * \brief main
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <zephyr.h>
-#include <board_utils.h>
 #include "shell_lora.h"
 #include <kernel.h>
 #include <device.h>

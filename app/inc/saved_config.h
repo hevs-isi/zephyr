@@ -1,6 +1,10 @@
 #ifndef SAVED_CONFIG_H
 #define SAVED_CONFIG_H
 
+/**
+ * \brief Configuration saved in non-volatile memory
+ */
+
 #include <stdint.h>
 
 #ifdef __cplusplus
