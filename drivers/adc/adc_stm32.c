@@ -161,8 +161,8 @@ static const u32_t table_samp_time[] = {
 };
 #endif
 
-/* 16 external channels. */
-#define STM32_CHANNEL_COUNT		16
+/* 18 channels. */
+#define STM32_CHANNEL_COUNT		18
 
 struct adc_stm32_data {
 	struct adc_context ctx;
@@ -396,7 +396,7 @@ static int adc_stm32_channel_setup(struct device *dev,
 #endif
 	int acq_time_index;
 
-	if (channel_cfg->channel_id >= STM32_CHANNEL_COUNT) {
+	if (channel_cfg->channel_id > STM32_CHANNEL_COUNT) {
 		LOG_ERR("Channel %d is not valid", channel_cfg->channel_id);
 		return -EINVAL;
 	}
