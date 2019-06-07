@@ -6,7 +6,7 @@
 #include <gpio.h>
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(adc, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(adc, LOG_LEVEL_INF);
 
 #include "app_adc.h"
 uint16_t adc_data[1];
@@ -157,7 +157,7 @@ static uint16_t _mes(uint32_t nr)
 
 static uint16_t mes(uint32_t nr)
 {
-	const uint8_t mean_nr = 1;
+	const uint8_t mean_nr = 8;
 	uint32_t tmp = 0;
 
 	for (int i = 0 ; i < mean_nr ; i++)
