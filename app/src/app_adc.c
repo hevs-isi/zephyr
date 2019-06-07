@@ -55,6 +55,13 @@ static const struct adc_channel_cfg channel_cfg[] =
 		.channel_id	   		= 18,
 		.differential		= 0,
 	},
+	{
+		.gain				= ADC_GAIN_1,
+		.reference			= ADC_REF_INTERNAL,
+		.acquisition_time	= ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 641),
+		.channel_id	   		= 17,
+		.differential		= 0,
+	},
 };
 
 const struct adc_sequence sequence[] =
@@ -91,6 +98,12 @@ const struct adc_sequence sequence[] =
 	},
 	{
 		.channels	= BIT(18),
+		.buffer	  = adc_data,
+		.buffer_size = sizeof(adc_data),
+		.resolution  = 12,
+	},
+	{
+		.channels	= BIT(17),
 		.buffer	  = adc_data,
 		.buffer_size = sizeof(adc_data),
 		.resolution  = 12,
@@ -144,10 +157,8 @@ static uint16_t _mes(uint32_t nr)
 {
 	uint16_t reference;
 	uint16_t in;
-	adc_data[0] = 0;
 	adc_read(adc_dev, &sequence[0]);
 	reference = adc_data[0];
-	adc_data[0] = 0;
 	adc_read(adc_dev, &sequence[nr]);
 	in = adc_data[0];
 
@@ -200,6 +211,36 @@ uint16_t adc_measure_vbat(void)
 	return value;
 }
 
+// Adapted from __LL_ADC_CALC_TEMPERATURE to have decidegrees
+#define calc_temp_x10(__VREFANALOG_VOLTAGE__,\
+                                  __TEMPSENSOR_ADC_DATA__,\
+                                  __ADC_RESOLUTION__)                              \
+  (((( ((int32_t)((__LL_ADC_CONVERT_DATA_RESOLUTION((__TEMPSENSOR_ADC_DATA__),     \
+                                                    (__ADC_RESOLUTION__),          \
+                                                    LL_ADC_RESOLUTION_12B)         \
+                   * (__VREFANALOG_VOLTAGE__))                                     \
+                  / TEMPSENSOR_CAL_VREFANALOG)                                     \
+        - (int32_t) *TEMPSENSOR_CAL1_ADDR)                                         \
+	) * (int32_t)(10*TEMPSENSOR_CAL2_TEMP - 10*TEMPSENSOR_CAL1_TEMP)                    \
+    ) / (int32_t)((int32_t)*TEMPSENSOR_CAL2_ADDR - (int32_t)*TEMPSENSOR_CAL1_ADDR) \
+) + 10*TEMPSENSOR_CAL1_TEMP                                                        \
+)
+
+int16_t adc_measure_temp(void)
+{
+	int32_t reference;
+	int32_t in;
+	int32_t value;
+	LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(), LL_ADC_PATH_INTERNAL_VREFINT | LL_ADC_PATH_INTERNAL_TEMPSENSOR);
+	adc_read(adc_dev, &sequence[0]);
+	reference = adc_data[0];
+	adc_read(adc_dev, &sequence[6]);
+	in = adc_data[0];
+	LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(), LL_ADC_PATH_INTERNAL_VREFINT);
+	value = calc_temp_x10(vdda_mv(reference), in, LL_ADC_RESOLUTION_12B);
+	LOG_DBG("adc_measure_temp:%"PRId32".%"PRId32" °C", value/10, value%10 > 0 ? value%10 : -value%10);
+	return value;
+}
 
 uint16_t adc_measure_sensor(uint32_t sensor)
 {
@@ -246,4 +287,6 @@ void adc_test(void)
 	LOG_INF("adc_measure_charger():%"PRIu16" mV", adc_measure_charger());
 	LOG_INF("adc_measure_sensor0():%"PRIu16" mV", adc_measure_sensor0());
 	LOG_INF("adc_measure_sensor1():%"PRIu16" mV", adc_measure_sensor1());
+	int16_t value = adc_measure_temp();
+	LOG_INF("adc_measure_temp():%"PRId16".%"PRId16" °C", value/10, value%10 > 0 ? value%10 : -value%10);
 }

@@ -42,6 +42,13 @@ uint16_t adc_measure_charger(void);
  */
 uint16_t adc_measure_sensor(uint32_t sensor);
 
+/**
+ * \brief measure the processor temperature
+ *
+ * \return the value in tenth of °C.
+ */
+int16_t adc_measure_temp(void);
+
 #ifdef __cplusplus
 }
 #endif
