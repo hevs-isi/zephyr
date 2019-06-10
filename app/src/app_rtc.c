@@ -42,7 +42,7 @@ int app_rtc_ok(void)
 	struct tm tm;
 	gmtime_r(&now, &tm);
 
-	if (tm.tm_year < 2019)
+	if (tm.tm_year + 1900 < 2019)
 	{
 		return 0;
 	}
