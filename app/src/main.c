@@ -460,8 +460,8 @@ void app_main(void *u1, void *u2, void *u3)
 	psu_cpu_hp(0);
 	saved_config_init();
 	saved_config_read(&global.config);
-	init_from_config(&global.config);
 	app_rtc_init();
+	init_from_config(&global.config);
 	all_timers_now(app_rtc_get());
 	gps_off();
 
