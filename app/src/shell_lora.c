@@ -243,31 +243,6 @@ static int shell_send_cdata(const struct shell *shell, size_t argc, char *argv[]
 #include <device.h>
 #include <gpio.h>
 
-static int shell_swd(const struct shell *shell, size_t argc, char *argv[])
-{
-	int ret;
-
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	shell_print(shell, "disable swd");
-
-	struct device *dev = device_get_binding(DT_GPIO_STM32_GPIOA_LABEL);
-	ret = gpio_pin_configure(dev, 13, (GPIO_DIR_IN));
-	if (ret) {
-		shell_error(shell, "Error configuring pin PA%d!\n", 13);
-		return ret;
-	}
-
-	ret = gpio_pin_configure(dev, 14, (GPIO_DIR_IN));
-	if (ret) {
-		shell_error(shell, "Error configuring pin PA%d!\n", 14);
-		return ret;
-	}
-
-	return 0;
-}
-
 static int shell_quit(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -285,6 +260,17 @@ static int shell_quit(const struct shell *shell, size_t argc, char *argv[])
 		shell_error(shell, "Error configuring pin PA%d!\n", 13);
 		return ret;
 	}
+
+	return 0;
+}
+
+static int shell_cmd_tx_info(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_connected(shell);
+
+	lora_send_info();
 
 	return 0;
 }
@@ -324,6 +310,7 @@ SHELL_CREATE_STATIC_SUBCMD_SET(lora_sub)
 	SHELL_CMD_ARG(set, NULL, "set APPEUI APPKEY", shell_cmd_setparam, 2, 2),
 	SHELL_CMD_ARG(join, NULL, "no help", shell_cmd_join, 0, 1),
 	SHELL_CMD_ARG(info, NULL, "no help", shell_cmd_info, 0, 1),
+	SHELL_CMD_ARG(tx_info, NULL, "tx lora_info", shell_cmd_tx_info, 0, 0),
 	SHELL_CMD_ARG(firmware, NULL, "no help", shell_cmd_fw, 0, 1),
 	SHELL_CMD_ARG(custom, NULL, "no help", shell_cmd_custom, 0, 1),
 	SHELL_CMD_ARG(getmode, NULL, "no help", shell_cmd_getmode, 0, 1),

@@ -148,16 +148,33 @@ void lora_send_info(void)
 {
 	uint32_t vbat = adc_measure_vbat();
 	uint32_t vin = adc_measure_charger();
+	int32_t temp = adc_measure_temp();
+	uint32_t period[2] =
+	{
+		global.config.a.period,
+		global.config.b.period,
+	};
 
 	// little endian protocol
-	LOG_DBG("value:%"PRIu32, vbat);
+	printk("vbat:%"PRIu32" mv\n", vbat);
+	printk("vin:%"PRIu32" mv\n", vin);
+	printk("temp:%"PRId32".%"PRId32" °C\n", temp/10, temp > 0 ? temp%10 : -temp % 10);
+	printk("period0:%"PRIu32"\n", period[0]);
+	printk("period1:%"PRIu32"\n", period[1]);
 	vbat = sys_cpu_to_le32(vbat);
 	vin = sys_cpu_to_le32(vin);
+	temp = sys_cpu_to_le32(temp);
+	for (int i = 0 ; i < ARRAY_SIZE(period); i++)
+	{
+		period[i] = sys_cpu_to_le32(period[i]);
+	}
 
-	u8_t data[1+sizeof(vbat)+sizeof(vin)];
-	data[0] = 0x02; // version
+	u8_t data[1+sizeof(vbat)+sizeof(vin)+sizeof(temp)+sizeof(period)];
+	data[0] = 0x03; // version
 	memcpy(&data[1], &vbat, sizeof(vbat));
-	memcpy(&data[5], &vin, sizeof(vin));
+	memcpy(&data[5], &temp, sizeof(temp));
+	memcpy(&data[9], &vin, sizeof(vin));
+	memcpy(&data[13], &period, sizeof(period));
 
 	wimod_lorawan_send_u_radio_data(3, data, sizeof(data));
 }
@@ -216,8 +233,60 @@ void lora_time_AppTimeAns(const uint8_t data[5])
 	}
 }
 
+static int decode_config(uint32_t port, const uint8_t *data, size_t size)
+{
+	struct sensor_config_t *c;
+
+	switch (port)
+	{
+		case 1:
+		c = &global.config.a;
+		break;
+
+		case 2:
+		c = &global.config.b;
+		break;
+
+		default:
+		return -EINVAL;
+	}
+
+	if (size < 9)
+	{
+		return -EINVAL;
+	}
+
+	uint8_t version = data[0];
+
+	if (version != 3)
+	{
+		return -EINVAL;
+	}
+
+	uint32_t period;
+	uint32_t wakeup_ms;
+	memcpy(&period, &data[1], sizeof(period));
+	memcpy(&wakeup_ms, &data[5], sizeof(wakeup_ms));
+	period = sys_le32_to_cpu(period);
+	wakeup_ms = sys_le32_to_cpu(wakeup_ms);
+
+	c->period = period;
+	c->wakeup_ms = wakeup_ms;
+	if (c->period == 0)
+	{
+		c->enable = 0;
+	}
+
+	global.config_changed = 1;
+
+	LOG_INF("input%"PRIu32": period:%"PRIu32" s, wakeup_ms:%"PRIu32" ms", port - 1, c->period, c->wakeup_ms);
+
+	return 0;
+}
+
 int wimod_data_rx_handler(uint32_t port, const uint8_t *data, size_t size)
 {
+	int ret = 0;
 	switch(port)
 	{
 		case 202:
@@ -237,6 +306,14 @@ int wimod_data_rx_handler(uint32_t port, const uint8_t *data, size_t size)
 			return 0;
 		break;
 
+		case 1:
+		case 2:
+			ret = decode_config(port, data, size);
+			lora_send_info();
+			return ret;
+		break;
+
+		default:
 		LOG_DBG("ignored message on port %"PRIu32, port);
 	}
 
