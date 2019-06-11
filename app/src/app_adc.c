@@ -9,10 +9,22 @@
 LOG_MODULE_REGISTER(adc, LOG_LEVEL_INF);
 
 #include "app_adc.h"
-uint16_t adc_data[1];
+uint16_t _adc_data[1];
+
+enum adc_input_e
+{
+	ADC_INPUT_VREF_INT	= 0,
+	ADC_INPUT_UNUSED	= 1,
+	ADC_INPUT_SENSOR_0	= 2,
+	ADC_INPUT_SENSOR_1	= 3,
+	ADC_INPUT_CHARGER	= 4,
+	ADC_INPUT_VBAT		= 5,
+	ADC_INPUT_TEMP		= 6,
+};
 
 static const struct adc_channel_cfg channel_cfg[] =
 {
+	[ADC_INPUT_VREF_INT] =
 	{
 		.gain				= ADC_GAIN_1,
 		.reference			= ADC_REF_INTERNAL,
@@ -20,6 +32,7 @@ static const struct adc_channel_cfg channel_cfg[] =
 		.channel_id	   		= 0,
 		.differential		= 0,
 	},
+	[ADC_INPUT_UNUSED] =
 	{
 		.gain				= ADC_GAIN_1,
 		.reference			= ADC_REF_INTERNAL,
@@ -27,6 +40,7 @@ static const struct adc_channel_cfg channel_cfg[] =
 		.channel_id	   		= 1,
 		.differential		= 0,
 	},
+	[ADC_INPUT_SENSOR_0] =
 	{
 		.gain				= ADC_GAIN_1,
 		.reference			= ADC_REF_INTERNAL,
@@ -34,6 +48,7 @@ static const struct adc_channel_cfg channel_cfg[] =
 		.channel_id	   		= 2,
 		.differential		= 0,
 	},
+	[ADC_INPUT_SENSOR_1] =
 	{
 		.gain				= ADC_GAIN_1,
 		.reference			= ADC_REF_INTERNAL,
@@ -41,6 +56,7 @@ static const struct adc_channel_cfg channel_cfg[] =
 		.channel_id	   		= 3,
 		.differential		= 0,
 	},
+	[ADC_INPUT_CHARGER] =
 	{
 		.gain				= ADC_GAIN_1,
 		.reference			= ADC_REF_INTERNAL,
@@ -48,6 +64,7 @@ static const struct adc_channel_cfg channel_cfg[] =
 		.channel_id	   		= 4,
 		.differential		= 0,
 	},
+	[ADC_INPUT_VBAT] =
 	{
 		.gain				= ADC_GAIN_1,
 		.reference			= ADC_REF_INTERNAL,
@@ -55,6 +72,7 @@ static const struct adc_channel_cfg channel_cfg[] =
 		.channel_id	   		= 18,
 		.differential		= 0,
 	},
+	[ADC_INPUT_TEMP] =
 	{
 		.gain				= ADC_GAIN_1,
 		.reference			= ADC_REF_INTERNAL,
@@ -66,46 +84,53 @@ static const struct adc_channel_cfg channel_cfg[] =
 
 const struct adc_sequence sequence[] =
 {
+	[ADC_INPUT_VREF_INT] =
 	{
 		.channels	= BIT(0),
-		.buffer	  = adc_data,
-		.buffer_size = sizeof(adc_data),
+		.buffer	  = _adc_data,
+		.buffer_size = sizeof(_adc_data),
 		.resolution  = 12,
 	},
+	[ADC_INPUT_UNUSED] =
 	{
 		.channels	= BIT(1),
-		.buffer	  = adc_data,
-		.buffer_size = sizeof(adc_data),
+		.buffer	  = _adc_data,
+		.buffer_size = sizeof(_adc_data),
 		.resolution  = 12,
 	},
+	[ADC_INPUT_SENSOR_0] =
 	{
 		.channels	= BIT(2),
-		.buffer	  = adc_data,
-		.buffer_size = sizeof(adc_data),
+		.buffer	  = _adc_data,
+		.buffer_size = sizeof(_adc_data),
 		.resolution  = 12,
 	},
+	[ADC_INPUT_SENSOR_1] =
 	{
 		.channels	= BIT(3),
-		.buffer	  = adc_data,
-		.buffer_size = sizeof(adc_data),
+		.buffer	  = _adc_data,
+		.buffer_size = sizeof(_adc_data),
 		.resolution  = 12,
 	},
+	[ADC_INPUT_CHARGER] =
 	{
 		.channels	= BIT(4),
-		.buffer	  = adc_data,
-		.buffer_size = sizeof(adc_data),
+		.buffer	  = _adc_data,
+		.buffer_size = sizeof(_adc_data),
 		.resolution  = 12,
 	},
+	[ADC_INPUT_VBAT] =
 	{
 		.channels	= BIT(18),
-		.buffer	  = adc_data,
-		.buffer_size = sizeof(adc_data),
+		.buffer	  = _adc_data,
+		.buffer_size = sizeof(_adc_data),
 		.resolution  = 12,
 	},
+	[ADC_INPUT_TEMP] =
 	{
 		.channels	= BIT(17),
-		.buffer	  = adc_data,
-		.buffer_size = sizeof(adc_data),
+		.buffer	  = _adc_data,
+		.buffer_size = sizeof(_adc_data),
 		.resolution  = 12,
 	},
 };
@@ -153,27 +178,33 @@ static uint16_t mes_mv(uint16_t ref, uint16_t in)
 
 static struct device *adc_dev;
 
-static uint16_t _mes(uint32_t nr)
+static uint16_t _adc_read(struct device *dev, enum adc_input_e input)
+{
+	adc_read(dev, &sequence[input]);
+	k_busy_wait(1000);
+	return _adc_data[0];
+}
+
+static uint16_t _mes(enum adc_input_e input)
 {
 	uint16_t reference;
 	uint16_t in;
-	adc_read(adc_dev, &sequence[0]);
-	reference = adc_data[0];
-	adc_read(adc_dev, &sequence[nr]);
-	in = adc_data[0];
+
+	reference = _adc_read(adc_dev, ADC_INPUT_VREF_INT);
+	in = _adc_read(adc_dev, input);
 
 	LOG_DBG("ref:%"PRIu16" in: %"PRIu16, reference, in);
 	return mes_mv(reference, in);
 }
 
-static uint16_t mes(uint32_t nr)
+static uint16_t mes(enum adc_input_e input)
 {
 	const uint8_t mean_nr = 8;
 	uint32_t tmp = 0;
 
 	for (int i = 0 ; i < mean_nr ; i++)
 	{
-		tmp += _mes(nr);
+		tmp += _mes(input);
 	}
 
 	return tmp / mean_nr;
@@ -181,7 +212,7 @@ static uint16_t mes(uint32_t nr)
 
 uint16_t adc_measure_charger(void)
 {
-	uint16_t value = mes(4)*21;
+	uint16_t value = mes(ADC_INPUT_CHARGER)*21;
 	LOG_DBG("adc_measure_charger:%"PRIu16" mV", value);
 
 	return value;
@@ -189,14 +220,14 @@ uint16_t adc_measure_charger(void)
 
 static uint16_t adc_measure_sensor0(void)
 {
-	uint16_t value = mes(2);
+	uint16_t value = mes(ADC_INPUT_SENSOR_0);
 	LOG_DBG("adc_measure_sensor0:%"PRIu16" mV", value);
 	return value;
 }
 
 static uint16_t adc_measure_sensor1(void)
 {
-	uint16_t value = mes(3);
+	uint16_t value = mes(ADC_INPUT_SENSOR_1);
 	LOG_DBG("adc_measure_sensor1:%"PRIu16" mV", value);
 	return value;
 }
@@ -205,7 +236,7 @@ uint16_t adc_measure_vbat(void)
 {
 	uint16_t value;
 	LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(), LL_ADC_PATH_INTERNAL_VREFINT | LL_ADC_PATH_INTERNAL_VBAT);
-	value = mes(5)*3;
+	value = mes(ADC_INPUT_VBAT)*3;
 	LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(), LL_ADC_PATH_INTERNAL_VREFINT);
 	LOG_DBG("adc_measure_vbat:%"PRIu16" mV", value);
 	return value;
@@ -228,14 +259,23 @@ uint16_t adc_measure_vbat(void)
 
 int16_t adc_measure_temp(void)
 {
-	int32_t reference;
-	int32_t in;
 	int32_t value;
+
 	LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(), LL_ADC_PATH_INTERNAL_VREFINT | LL_ADC_PATH_INTERNAL_TEMPSENSOR);
-	adc_read(adc_dev, &sequence[0]);
-	reference = adc_data[0];
-	adc_read(adc_dev, &sequence[6]);
-	in = adc_data[0];
+
+	const uint8_t mean_nr = 8;
+	int32_t reference = 0;
+	int32_t in = 0;
+
+	for (int i = 0 ; i < mean_nr ; i++)
+	{
+		reference += _adc_read(adc_dev, ADC_INPUT_VREF_INT);
+		in += _adc_read(adc_dev, ADC_INPUT_TEMP);
+	}
+
+	reference /= mean_nr;
+	in /= mean_nr;
+
 	LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(), LL_ADC_PATH_INTERNAL_VREFINT);
 	value = calc_temp_x10(vdda_mv(reference), in, LL_ADC_RESOLUTION_12B);
 	LOG_DBG("adc_measure_temp:%"PRId32".%"PRId32" °C", value/10, value%10 > 0 ? value%10 : -value%10);
@@ -275,14 +315,14 @@ void adc_init(void)
 		adc_channel_setup(adc_dev, &channel_cfg[i]);
 	}
 
-	adc_read(adc_dev, &sequence[0]);
-	LOG_INF("VREFINT_DATA=%"PRIu16", VDDA=%"PRIu16, *VREFINT_CAL_ADDR, vdda_mv(adc_data[0]));
+	uint16_t vdda = vdda_mv(_adc_read(adc_dev, ADC_INPUT_VREF_INT));
+	LOG_INF("VREFINT_DATA=%"PRIu16", VDDA=%"PRIu16, *VREFINT_CAL_ADDR, vdda);
 }
 
 void adc_test(void)
 {
-	adc_read(adc_dev, &sequence[0]);
-	LOG_INF("VDDA=%"PRIu16"\n", vdda_mv(adc_data[0]));
+	uint16_t vdda = vdda_mv(_adc_read(adc_dev, ADC_INPUT_VREF_INT));
+	LOG_INF("VDDA=%"PRIu16"\n", vdda);
 	LOG_INF("adc_measure_vbat():%"PRIu16" mV", adc_measure_vbat());
 	LOG_INF("adc_measure_charger():%"PRIu16" mV", adc_measure_charger());
 	LOG_INF("adc_measure_sensor0():%"PRIu16" mV", adc_measure_sensor0());
