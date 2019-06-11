@@ -34,8 +34,9 @@ up to and including the **Bootstrap west** step.
     mkdir -p ~/git
     cd ~/git
     west init -m https://github.com/hevs-isi/zephyr.git loraiot # or git@github.com:hevs-isi/zephyr.git if you have write access
-    cd zephyr/
+    cd loraiot/
     west update
+    pip3 install --user -r zephyr/scripts/requirements.txt
     ```
 1. Since west does something <s>nasty</s> I don't get with branches, let's configure remote branches as we want:
     ```
