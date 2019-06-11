@@ -151,8 +151,8 @@ void lora_send_info(void)
 	int32_t temp = adc_measure_temp();
 	uint32_t period[2] =
 	{
-		global.config.a.period,
-		global.config.b.period,
+		global.config.sensor_config[0].period,
+		global.config.sensor_config[1].period,
 	};
 
 	// little endian protocol
@@ -240,11 +240,11 @@ static int decode_config(uint32_t port, const uint8_t *data, size_t size)
 	switch (port)
 	{
 		case 1:
-		c = &global.config.a;
+		c = &global.config.sensor_config[0];
 		break;
 
 		case 2:
-		c = &global.config.b;
+		c = &global.config.sensor_config[1];
 		break;
 
 		default:

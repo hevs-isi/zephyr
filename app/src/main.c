@@ -246,8 +246,8 @@ static void init_timer(struct periodic_timer_t *m, struct periodic_timer_t *t, c
 
 static void init_from_config(const struct saved_config_t *c)
 {
-	init_timer(&measure_timer_a, &tx_timer_a, &c->a);
-	init_timer(&measure_timer_b, &tx_timer_b, &c->b);
+	init_timer(&measure_timer_a, &tx_timer_a, &c->sensor_config[0]);
+	init_timer(&measure_timer_b, &tx_timer_b, &c->sensor_config[1]);
 }
 
 static void all_timers_now(uint32_t now)
@@ -341,13 +341,13 @@ static uint32_t tick(uint32_t now)
 	if (expired_restart(&measure_timer_a, now))
 	{
 		LOG_DBG("expired:measure_timer_a");
-		ret = measure(&global.config.a, &value0, 0);
+		ret = measure(&global.config.sensor_config[0], &value0, 0);
 	}
 
 	if (expired_restart(&measure_timer_b, now))
 	{
 		LOG_DBG("expired:measure_timer_b");
-		ret = measure(&global.config.b, &value1, 1);
+		ret = measure(&global.config.sensor_config[1], &value1, 1);
 	}
 
 	if (expired_restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr))))
