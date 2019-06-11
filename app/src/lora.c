@@ -184,7 +184,7 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 	uint32_t time = app_rtc_get();
 
 	// unix ts to gps
-	time -= 315964800;
+	time -= 315964811;
 
 	LOG_DBG("time_gps:%"PRIu32, time);
 	LOG_DBG("time_net:0x%"PRIx32, time);
