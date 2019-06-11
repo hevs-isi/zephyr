@@ -61,6 +61,14 @@ Stopped at 1.520s
 ```
 **Please don't even go further if `hello_world` is not working.**
 
+# Flashing the watermon board
+```
+source ~/git/loraiot/zephyr/zephyr-env.sh
+cd ~/git/loraiot/zephyr/app
+west build -b nucleo_l476rg
+west flash
+```
+
 ## Testing on the nucleo_l432kc board + WiMOD_AB_01 + usb board + iM880x
 1. Wiring
 
