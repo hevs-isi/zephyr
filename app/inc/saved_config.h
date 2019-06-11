@@ -51,8 +51,7 @@ struct saved_config_t
 	uint32_t version;
 	uint32_t boot_count;
 	uint32_t changes;
-	struct sensor_config_t a;
-	struct sensor_config_t b;
+	struct sensor_config_t sensor_config[2];
 	uint32_t rtc_offset;
 	uint8_t _reserved[2*64-(20+2*sizeof(struct sensor_config_t))];
 	uint32_t crc;
@@ -65,10 +64,11 @@ int saved_config_save(struct saved_config_t *config);
 
 enum saved_config_predef_e
 {
-	SC_DEFAULT_INDUS_1	= 0x00,
-	SC_DEFAULT_INDUS_2	= 0x01,
-	SC_DEFAULT_INDUS_1_FAST	= 0x02,
-	SC_DEFAULT_INDUS_2_FAST	= 0x03,
+	SC_DEFAULT_OFF	= 0x00,
+	SC_DEFAULT_INDUS_1	= 0x01,
+	SC_DEFAULT_INDUS_2	= 0x02,
+	SC_DEFAULT_INDUS_1_FAST	= 0x03,
+	SC_DEFAULT_INDUS_2_FAST	= 0x04,
 };
 
 void saved_config_predef(struct saved_config_t *config, enum saved_config_predef_e pre);

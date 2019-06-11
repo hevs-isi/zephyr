@@ -356,27 +356,31 @@ void saved_config_predef(struct saved_config_t *config, enum saved_config_predef
 {
 	switch (pre)
 	{
+		case SC_DEFAULT_OFF:
+			config->sensor_config[0] = default_off;
+			config->sensor_config[1] = default_off;
+		break;
 		case SC_DEFAULT_INDUS_1:
-			config->a = default_indus_pressure;
-			config->b = default_off;
+			config->sensor_config[0] = default_indus_pressure;
+			config->sensor_config[1] = default_off;
 		break;
 
 		case SC_DEFAULT_INDUS_2:
-			config->a = default_indus_pressure;
-			config->b = default_indus_flow;
+			config->sensor_config[0] = default_indus_pressure;
+			config->sensor_config[1] = default_indus_flow;
 		break;
 
 		case SC_DEFAULT_INDUS_1_FAST:
-			config->a = default_indus_pressure;
-			config->a.period = 30;
-			config->b = default_off;
+			config->sensor_config[0] = default_indus_pressure;
+			config->sensor_config[0].period = 30;
+			config->sensor_config[1] = default_off;
 		break;
 
 		case SC_DEFAULT_INDUS_2_FAST:
-			config->a = default_indus_pressure;
-			config->a.period = 30;
-			config->b = default_indus_flow;
-			config->b.period = 30;
+			config->sensor_config[0] = default_indus_pressure;
+			config->sensor_config[0].period = 30;
+			config->sensor_config[1] = default_indus_flow;
+			config->sensor_config[1].period = 30;
 		break;
 	}
 }
