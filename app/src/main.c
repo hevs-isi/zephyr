@@ -100,7 +100,7 @@ static uint32_t expired(const struct periodic_timer_t *t, uint32_t now)
 		//LOG_DBG("timer:%s now:%"PRIu32" next:%"PRIu32" delta:%"PRId32, t->name, now, t->next, delta);
 	}
 
-	return (delta < 0) && t->enable && t->configured;
+	return (delta <= 0) && t->enable && t->configured;
 }
 
 static uint32_t expiry(const struct periodic_timer_t *t, uint32_t now)
@@ -258,6 +258,21 @@ static void all_timers_now(uint32_t now)
 		{
 			timers[i]->next = now + 10;
 			timers[i]->configured = 1;
+		}
+	}
+}
+
+static void timers_info(uint32_t now)
+{
+	for (size_t i = 0 ; i < ARRAY_SIZE(timers);i++)
+	{
+		if (timers[i]->enable)
+		{
+			LOG_DBG("%s:period:%"PRIu32", expiry:%"PRIu32, timers[i]->name, timers[i]->period, expiry(timers[i], now));
+		}
+		else
+		{
+			LOG_DBG("%s:disable", timers[i]->name);
 		}
 	}
 }
@@ -495,7 +510,7 @@ void app_main(void *u1, void *u2, void *u3)
 		{
 			LOG_INF("wakeup!");
 			global.sleep_prevent = 0;
-			sleep_prevent_duration = 60;
+			sleep_prevent_duration = 30;
 			k_thread_resume(led0_thread_id);
 		}
 
@@ -533,7 +548,13 @@ void app_main(void *u1, void *u2, void *u3)
 		{
 			if (sleep_prevent_duration % 5 == 0)
 			{
+				timers_info(now);
 				LOG_DBG("sleep_prevent_duration : %"PRIu32" seconds", sleep_prevent_duration);
+			}
+
+			if (sleep_prevent_duration == 5)
+			{
+				LOG_DBG("sleep : %"PRIu32" seconds", sleep_seconds);
 			}
 			k_sleep(1000);
 			sleep_prevent_duration--;
@@ -545,7 +566,6 @@ void app_main(void *u1, void *u2, void *u3)
 			led1_set(0);
 			if (sleep_seconds)
 			{
-				LOG_DBG("sleep : %"PRIu32" seconds", sleep_seconds);
 				stm32_sleep(1000*sleep_seconds);
 			}
 		}
