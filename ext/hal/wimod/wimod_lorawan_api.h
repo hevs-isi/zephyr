@@ -167,8 +167,9 @@ typedef void (*join_network_cb)();
 
 // init
 bool wimod_lorawan_init();
-
+int wimod_lorawan_reset();
 int wimod_lorawan_factory_reset();
+int wimod_lorawan_device_status();
 
 // ping device
 int wimod_lorawan_send_ping();
@@ -191,6 +192,7 @@ int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey)
 
 // join network
 int wimod_lorawan_join_network_request(join_network_cb cb);
+int wimod_lorawan_reactivate(void);
 
 // send unconfirmed radio data
 int wimod_lorawan_send_u_radio_data(u8_t port, const void *data, int length);

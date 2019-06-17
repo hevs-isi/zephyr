@@ -170,6 +170,14 @@ bool wimod_lorawan_init()
     return wimod_hci_init(wimod_lorawan_process_rx_msg, &rx_message);
 }
 
+int wimod_lorawan_reset()
+{
+    tx_message.sap_id = DEVMGMT_SAP_ID;
+    tx_message.msg_id = DEVMGMT_MSG_RESET_REQ;
+    tx_message.length = 0;
+
+    return wimod_hci_send_message(&tx_message);
+}
 
 int wimod_lorawan_factory_reset()
 {
@@ -327,13 +335,16 @@ int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey)
 		tx_message.payload[8+i] = strtol(buf, NULL, 0);
 	}
 
-/*
-    memset64(tx_message.payload, 0x8B0F01D07ED5B370, 8);
-	memset64(&tx_message.payload[8], 0xA2059BA5F8C58B7F, 8);
-	memset64(&tx_message.payload[16], 0xA4626D4EB8E8BDB1, 8);
-*/
-
     // 2. send HCI message with payload
+    return wimod_hci_send_message(&tx_message);
+}
+
+int wimod_lorawan_reactivate(void)
+{
+    tx_message.sap_id = LORAWAN_SAP_ID;
+    tx_message.msg_id = LORAWAN_MSG_REACTIVATE_DEVICE_REQ;
+    tx_message.length = 0;
+
     return wimod_hci_send_message(&tx_message);
 }
 
@@ -673,7 +684,7 @@ static void wimod_lorawan_device_eui_rsp(wimod_hci_message_t* rx_msg)
 
 static void wimod_lorawan_process_nwk_status_rsp(wimod_hci_message_t* rx_msg)
 {
-	u32_t device_address;
+	uint32_t device_address;
 
 	wimod_lorawan_show_response("network status response",
 			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
@@ -685,7 +696,7 @@ static void wimod_lorawan_process_nwk_status_rsp(wimod_hci_message_t* rx_msg)
 		device_address = MAKELONG(MAKEWORD(rx_msg->payload[5], rx_msg->payload[4]),
 					MAKEWORD(rx_msg->payload[3], rx_msg->payload[2]));
 
-		LOG_DBG("Device Address: %d", device_address);
+		LOG_DBG("Device Address: 0x%06"PRIx32, device_address);
 		LOG_DBG("Data Rate Index: %d", rx_msg->payload[6]);
 		LOG_DBG("Power Level: %d", rx_msg->payload[7]);
 		LOG_DBG("Max Payload Size: %d", rx_msg->payload[8]);
@@ -743,6 +754,10 @@ static void wimod_lorawan_process_lorawan_message(wimod_hci_message_t* rx_msg)
 
     switch(rx_msg->msg_id)
     {
+		case	DEVMGMT_MSG_RESET_RSP:
+				LOG_DBG("device reset");
+        break;
+
     	case    LORAWAN_MSG_GET_DEVICE_EUI_RSP:
 				wimod_lorawan_device_eui_rsp(rx_msg);
 				break;

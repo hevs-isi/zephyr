@@ -30,6 +30,17 @@ static void shell_connected(const struct shell *shell)
 	shell_log_backend_enable(shell->log_backend, (void *)shell, LOG_LEVEL_DBG);
 }
 
+static int shell_cmd_reactivate(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_connected(shell);
+
+	wimod_lorawan_reactivate();
+
+	return 0;
+}
+
 static int shell_cmd_info(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -156,6 +167,11 @@ static int shell_cmd_setparam(const struct shell *shell, size_t argc, char *argv
 		return -1;
 	}
 
+	/*
+	 * Some modules (at least im881) may come from the factory as class C device
+	 * So configure the module as class A.
+	 */
+	wimod_lorawan_set_rstack_config();
 
 	wimod_lorawan_set_join_param_request(appEui, appKey);
 
@@ -304,20 +320,35 @@ static int shell_time(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+static int shell_reset(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	shell_connected(shell);
+
+	return wimod_lorawan_reset();
+}
+
 SHELL_CREATE_STATIC_SUBCMD_SET(lora_sub)
 {
-	SHELL_CMD_ARG(deveui, NULL, "read deveui", shell_cmd_deveui, 0, 1),
 	SHELL_CMD_ARG(set, NULL, "set APPEUI APPKEY", shell_cmd_setparam, 2, 2),
 	SHELL_CMD_ARG(join, NULL, "no help", shell_cmd_join, 0, 1),
-	SHELL_CMD_ARG(info, NULL, "no help", shell_cmd_info, 0, 1),
+	SHELL_CMD_ARG(deveui, NULL, "read deveui", shell_cmd_deveui, 0, 1),
 	SHELL_CMD_ARG(tx_info, NULL, "tx lora_info", shell_cmd_tx_info, 0, 0),
+	SHELL_CMD_ARG(factory, NULL, "reset to factory settings (will erase network keys)", shell_factory_reset, 0, 0),
+	SHELL_CMD_ARG(time, NULL, "time [0/1], will request server time (1 for mandatory response)", shell_time, 1, 1),
+	SHELL_CMD_ARG(reset, NULL, "reset the lora module", shell_reset, 0, 0),
+
+	SHELL_CMD_ARG(reactivate, NULL, "re-join the network", shell_cmd_reactivate, 0, 0),
+
+	SHELL_CMD_ARG(info, NULL, "no help", shell_cmd_info, 0, 1),
 	SHELL_CMD_ARG(firmware, NULL, "no help", shell_cmd_fw, 0, 1),
 	SHELL_CMD_ARG(custom, NULL, "no help", shell_cmd_custom, 0, 1),
 	SHELL_CMD_ARG(getmode, NULL, "no help", shell_cmd_getmode, 0, 1),
 	SHELL_CMD_ARG(get_rtc, NULL, "no help", shell_cmd_get_rtc, 0, 1),
 	SHELL_CMD_ARG(set_rtc, NULL, "no help", shell_cmd_set_rtc, 0, 1),
 	SHELL_CMD_ARG(get_rtc_alarm, NULL, "no help", shell_cmd_get_rtc_alarm, 0, 1),
-	SHELL_CMD_ARG(factory, NULL, "no help", shell_factory_reset, 0, 1),
 	SHELL_CMD_ARG(nwk, NULL, "no help", shell_nwk_status, 0, 1),
 	SHELL_CMD_ARG(setrstack, NULL, "no help", shell_set_rstack_cfg, 0, 1),
 	SHELL_CMD_ARG(rstack, NULL, "no help", shell_rstack_cfg, 0, 1),
@@ -325,7 +356,6 @@ SHELL_CREATE_STATIC_SUBCMD_SET(lora_sub)
 	SHELL_CMD_ARG(udata, NULL, "no help", shell_send_udata, 0, 1),
 	SHELL_CMD_ARG(cdata, NULL, "no help", shell_send_cdata, 0, 1),
 	SHELL_CMD_ARG(quit, NULL, "no help", shell_quit, 0, 0),
-	SHELL_CMD_ARG(time, NULL, "time [0/1], will request server time (1 for mandatory response)", shell_time, 1, 1),
 	SHELL_SUBCMD_SET_END
 };
 
