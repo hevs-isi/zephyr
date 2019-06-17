@@ -166,7 +166,7 @@ typedef void (*join_network_cb)();
 //------------------------------------------------------------------------------
 
 // init
-bool wimod_lorawan_init();
+int wimod_lorawan_init();
 int wimod_lorawan_reset();
 int wimod_lorawan_factory_reset();
 int wimod_lorawan_device_status();

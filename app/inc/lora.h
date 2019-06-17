@@ -10,8 +10,10 @@ extern "C"
 
 /**
  * \brief Initialize the radio module
+ *
+ * \return 0 on success
  */
-void lora_init(void);
+int lora_init(void);
 
 /**
  * \brief Turn the lora radio module OFF (including RX/TX pins)

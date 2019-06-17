@@ -15,67 +15,50 @@ LOG_MODULE_REGISTER(lora, LOG_LEVEL_DBG);
 #include <wimod_lorawan_api.h>
 #endif
 
-#ifdef CONFIG_BOARD_NRF52840_LORAIOT
-#include <board_utils.h>
-#endif
-
 #include <gpio.h>
 
 static struct device *uart;
 static struct uart_device_config *uart_cfg;
-
-struct lora_msg {
-	u8_t port;
-	u8_t data[20];
-	u8_t size;
-	struct k_work work;
-};
 
 #include <uart.h>
 
 void join_callback()
 {
 	LOG_INF("LoRaWAN Network started.\n");
-	//blink_led(LED_GREEN, MSEC_PER_SEC/4, K_SECONDS(3));
-	#ifdef CONFIG_BOARD_NRF52840_LORAIOT
-		VDDH_DEACTIVATE();
-	#endif
 }
 
-void disable_uart()
+int lora_init()
 {
-	#ifdef CONFIG_BOARD_NRF52840_LORAIOT
-	if( NOT_IN_DEBUG() ){
-		*(uart_cfg->base + 0x500) = 0;
-	}
-	#endif
-}
-
-void enable_uart()
-{
-	#ifdef CONFIG_BOARD_NRF52840_LORAIOT
-	if( NOT_IN_DEBUG() ){
-		*(uart_cfg->base + 0x500) = 4UL;
-	}
-	#endif
-}
-
-void lora_init()
-{
+	int status;
 	uart = device_get_binding(CONFIG_LORA_IM881A_UART_DRV_NAME);
 	uart_cfg = (struct uart_device_config *)(uart->config->config_info);
 
 	/* BUG: couldn't launch the debug when the function 'uart_irq_rx_enable' is called too quickly */
 	k_busy_wait(1000000);
 
-	#ifdef CONFIG_BOARD_NRF52840_LORAIOT
-	VDDH_ACTIVATE();
-	#endif
+	status = wimod_lorawan_init();
+	if (status)
+	{
+		LOG_ERR("wimod_lorawan_init failed");
+		return -EIO;
+	}
 
-	wimod_lorawan_init();
-	wimod_lorawan_reset();
+	status = wimod_lorawan_reset();
+	if (status)
+	{
+		LOG_ERR("wimod_lorawan_reset, turn it OFF then ON");
+		lora_off();
+		k_sleep(K_SECONDS(1));
+		lora_on();
+		status = wimod_lorawan_send_ping();
+		if (status)
+		{
+			LOG_ERR("hard reset failed");
+			return -EIO;
+		}
+	}
 
-	disable_uart();
+	return 0;
 }
 
 #define INPUT_NOPULL (STM32_MODER_INPUT_MODE | STM32_PUPDR_NO_PULL)

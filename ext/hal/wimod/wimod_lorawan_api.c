@@ -39,14 +39,6 @@ static uint32_t mk_uint32_t(const uint8_t *buffer)
 	return sys_le32_to_cpu(tmp);
 }
 
-static uint16_t mk_uint16_t(const uint8_t *buffer)
-{
-	uint16_t tmp;
-	memcpy(&tmp, buffer, sizeof(tmp));
-	return sys_le16_to_cpu(tmp);
-}
-
-
 //------------------------------------------------------------------------------
 //
 //  Forward Declarations
@@ -164,10 +156,20 @@ static const id_string_t wimod_lorawan_status_strings[] =
 //
 //------------------------------------------------------------------------------
 
-bool wimod_lorawan_init()
+static K_MUTEX_DEFINE(wimod_mutex);
+
+int wimod_lorawan_init()
 {
 	// init HCI layer
-	return wimod_hci_init(wimod_lorawan_process_rx_msg, &rx_message);
+	int status;
+
+	k_mutex_lock(&wimod_mutex, K_FOREVER);
+
+	status = wimod_hci_init(wimod_lorawan_process_rx_msg, &rx_message);
+
+	k_mutex_unlock(&wimod_mutex);
+
+	return status;
 }
 
 static void wimod_timer_stop_handler(struct k_timer *timer_id)
@@ -186,29 +188,43 @@ static int wimod_send_message_block(wimod_hci_message_t* tx_message)
 {
 	int status;
 
-	k_timer_start(&wimod_timer, K_SECONDS(1), 0);
+	k_mutex_lock(&wimod_mutex, K_FOREVER);
 
+	k_timer_user_data_set(&wimod_timer, tx_message);
+	k_timer_start(&wimod_timer, K_SECONDS(1), 0);
+	LOG_DBG("sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_message->sap_id, tx_message->msg_id);
 	status = wimod_hci_send_message(tx_message);
 	if (status != 0)
 	{
 		LOG_ERR("failed");
+		k_timer_stop(&wimod_timer);
+		k_mutex_unlock(&wimod_mutex);
 		return -1;
 	}
 
 	uint32_t timer_status = k_timer_status_sync(&wimod_timer);
 
-	// FIXME : check response
+	k_mutex_unlock(&wimod_mutex);
 
 	return timer_status == 0 ? 0 : -1;
 }
 
 int wimod_lorawan_reset()
 {
+	int status;
 	tx_message.sap_id = DEVMGMT_SAP_ID;
 	tx_message.msg_id = DEVMGMT_MSG_RESET_REQ;
 	tx_message.length = 0;
 
-	return wimod_send_message_block(&tx_message);
+	status = wimod_send_message_block(&tx_message);
+	if (status)
+	{
+		return status;
+	}
+
+	k_sleep(100);
+
+	return wimod_lorawan_send_ping();
 }
 
 int wimod_lorawan_factory_reset()
@@ -535,7 +551,28 @@ void wimod_lorawan_process()
 
 static wimod_hci_message_t* wimod_lorawan_process_rx_msg(wimod_hci_message_t* rx_msg)
 {
-	k_timer_stop(&wimod_timer);
+	if (k_timer_remaining_get(&wimod_timer))
+	{
+		/*
+		 * IFF the timer is running, the wimod_send_message_block is still
+		 * waiting, and the user data is still valid (on the stack.)
+		 */
+		const wimod_hci_message_t *tx_msg = (wimod_hci_message_t *)k_timer_user_data_get(&wimod_timer);
+
+		/*
+		 * Stop the timer only if this is a the _RSP according to the last _REQ.
+		 * According to the spec, the _RSP is always _REQ+1.
+		 * The _RSP should have the same SAP_ID.
+		 */
+		LOG_DBG("tx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
+		LOG_DBG("rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+
+		if ((tx_msg->sap_id == rx_msg->sap_id) && (tx_msg->msg_id+1 == rx_msg->msg_id))
+		{
+			k_timer_stop(&wimod_timer);
+		}
+	}
+
 	LOG_DBG("here");
 	switch(rx_msg->sap_id)
 	{

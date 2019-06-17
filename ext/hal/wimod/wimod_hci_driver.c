@@ -116,7 +116,7 @@ static void uart_isr(struct device *dev)
 */
 }
 
-bool wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
+int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 					wimod_hci_message_t*	rx_message)
 {
 
@@ -157,7 +157,6 @@ bool wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 	uart_irq_rx_enable(uart_dev);
 
 	return 0;
-
 }
 
 //------------------------------------------------------------------------------

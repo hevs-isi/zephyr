@@ -37,7 +37,7 @@ typedef struct
 typedef wimod_hci_message_t* (*wimod_hci_cb_rx_message)(wimod_hci_message_t* rx_message);
 
 // Init HCI Layer
-bool wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
+int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 					wimod_hci_message_t*	rx_message);
 
 // Send HCI Message
