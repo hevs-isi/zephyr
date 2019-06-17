@@ -209,34 +209,24 @@ int wimod_hci_send_message(wimod_hci_message_t* tx_message)
                                    &tx_message->sap_id,
                                    tx_message->length + WIMOD_HCI_MSG_HEADER_SIZE + WIMOD_HCI_MSG_FCS_SIZE);
     // message ok ?
-    if (tx_length > 0)
+    if (!(tx_length > 0))
     {
-        // send wakeup chars
-        for(i= 0; i < 40; i++){
-        	//uart_pipe_send(&buf[0], 1);
-        	uart_poll_out(uart_dev, buf[0]);
-        }
-
-        // 4. send octet sequence over serial device
-        for(i= 0; i < tx_length; i++){
-			//uart_pipe_send(&buf[0], 1);
-			uart_poll_out(uart_dev, tx_buffer[i]);
-		}
-
-
-
-        /*
-        if (!uart_pipe_send(tx_buffer, tx_length))
-        {
-            // return ok
-            return 0;
-        }*/
-
-
+        return -1;
     }
 
-    // error - SLIP layer couldn't encode message - buffer to small ?
-    return -1;
+    // send wakeup chars
+    for(i= 0; i < 40; i++){
+    	//uart_pipe_send(&buf[0], 1);
+    	uart_poll_out(uart_dev, buf[0]);
+    }
+
+    // 4. send octet sequence over serial device
+    for(i= 0; i < tx_length; i++){
+		//uart_pipe_send(&buf[0], 1);
+		uart_poll_out(uart_dev, tx_buffer[i]);
+	}
+    
+    return 0;
 }
 
 //------------------------------------------------------------------------------

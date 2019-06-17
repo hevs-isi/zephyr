@@ -30,17 +30,6 @@ static void shell_connected(const struct shell *shell)
 	shell_log_backend_enable(shell->log_backend, (void *)shell, LOG_LEVEL_DBG);
 }
 
-static int shell_cmd_reactivate(const struct shell *shell, size_t argc, char *argv[])
-{
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-	shell_connected(shell);
-
-	wimod_lorawan_reactivate();
-
-	return 0;
-}
-
 static int shell_cmd_info(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -339,8 +328,6 @@ SHELL_CREATE_STATIC_SUBCMD_SET(lora_sub)
 	SHELL_CMD_ARG(factory, NULL, "reset to factory settings (will erase network keys)", shell_factory_reset, 0, 0),
 	SHELL_CMD_ARG(time, NULL, "time [0/1], will request server time (1 for mandatory response)", shell_time, 1, 1),
 	SHELL_CMD_ARG(reset, NULL, "reset the lora module", shell_reset, 0, 0),
-
-	SHELL_CMD_ARG(reactivate, NULL, "re-join the network", shell_cmd_reactivate, 0, 0),
 
 	SHELL_CMD_ARG(info, NULL, "no help", shell_cmd_info, 0, 1),
 	SHELL_CMD_ARG(firmware, NULL, "no help", shell_cmd_fw, 0, 1),
