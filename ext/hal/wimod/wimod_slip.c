@@ -14,7 +14,7 @@
 //------------------------------------------------------------------------------
 
 // slip Receiver/Decoder States
-#define SLIPDEC_IDLE_STATE          0
+#define SLIPDEC_IDLE_STATE			0
 #define	SLIPDEC_START_STATE			1
 #define	SLIPDEC_IN_FRAME_STATE		2
 #define	SLIPDEC_ESC_STATE			3
