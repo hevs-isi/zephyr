@@ -29,15 +29,20 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(wimod_lorawan_api, LOG_LEVEL_DBG);
 
-#define MAKEWORD(lo,hi) ((lo)|((hi) << 8))
-#define MAKELONG(lo,hi) ((lo)|((hi) << 16))
-
 static uint32_t mk_uint32_t(const uint8_t *buffer)
 {
 	uint32_t tmp;
 	memcpy(&tmp, buffer, sizeof(tmp));
 	return sys_le32_to_cpu(tmp);
 }
+
+static uint32_t mk_uint16_t(const uint8_t *buffer)
+{
+	uint16_t tmp;
+	memcpy(&tmp, buffer, sizeof(tmp));
+	return sys_le16_to_cpu(tmp);
+}
+
 
 //------------------------------------------------------------------------------
 //
@@ -47,40 +52,40 @@ static uint32_t mk_uint32_t(const uint8_t *buffer)
 
 // HCI Message Receiver callback
 static wimod_hci_message_t*
-wimod_lorawan_process_rx_msg(wimod_hci_message_t* rx_msg);
+wimod_lorawan_process_rx_msg(wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_process_devmgmt_message(wimod_hci_message_t* rx_msg);
+wimod_lorawan_process_devmgmt_message(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_devmgmt_device_info_rsp(wimod_hci_message_t* rx_msg);
+wimod_lorawan_devmgmt_device_info_rsp(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_devmgmt_firmware_version_rsp(wimod_hci_message_t* rx_msg);
+wimod_lorawan_devmgmt_firmware_version_rsp(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_get_opmode_rsp(wimod_hci_message_t* rx_msg);
+wimod_lorawan_get_opmode_rsp(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_get_rtc_rsp(wimod_hci_message_t* rx_msg);
+wimod_lorawan_get_rtc_rsp(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_get_rtc_alarm_rsp(wimod_hci_message_t* rx_msg);
+wimod_lorawan_get_rtc_alarm_rsp(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_process_lorawan_message(wimod_hci_message_t* rx_msg);
+wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_process_join_tx_indication(wimod_hci_message_t* rx_msg);
+wimod_lorawan_process_join_tx_indication(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_process_join_network_indication(wimod_hci_message_t* rx_msg);
+wimod_lorawan_process_join_network_indication(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_process_u_data_rx_indication(wimod_hci_message_t* rx_msg);
+wimod_lorawan_process_u_data_rx_indication(const wimod_hci_message_t *rx_msg);
 
 static void
-wimod_lorawan_process_c_data_rx_indication(wimod_hci_message_t* rx_msg);
+wimod_lorawan_process_c_data_rx_indication(const wimod_hci_message_t *rx_msg);
 
 static void
 wimod_lorawan_show_response(const char* string, const id_string_t* status_table, u8_t status_id);
@@ -95,10 +100,10 @@ wimod_lorawan_show_response_tx(const char* string, const id_string_t* status_tab
 //------------------------------------------------------------------------------
 
 // reserve one Tx-Message
-wimod_hci_message_t tx_message;
+static wimod_hci_message_t tx_buffer;
 
 // reserve one Rx-Message
-wimod_hci_message_t rx_message;
+static wimod_hci_message_t rx_buffer;
 
 // network join callback function
 static join_network_cb join_callback;
@@ -165,7 +170,7 @@ int wimod_lorawan_init()
 
 	k_mutex_lock(&wimod_mutex, K_FOREVER);
 
-	status = wimod_hci_init(wimod_lorawan_process_rx_msg, &rx_message);
+	status = wimod_hci_init(wimod_lorawan_process_rx_msg, &rx_buffer);
 
 	k_mutex_unlock(&wimod_mutex);
 
@@ -184,27 +189,37 @@ static void wimod_timer_expired_handler(struct k_timer *timer_id)
 
 K_TIMER_DEFINE(wimod_timer, wimod_timer_expired_handler, wimod_timer_stop_handler);
 
-static int wimod_send_message_block(wimod_hci_message_t* tx_message)
+static wimod_hci_message_t *tx_buffer_lock(void)
+{
+	k_mutex_lock(&wimod_mutex, K_FOREVER);
+
+	return &tx_buffer;
+}
+
+static void tx_buffer_unlock()
+{
+	k_mutex_unlock(&wimod_mutex);
+}
+
+static int wimod_send_message_unlock(wimod_hci_message_t* tx_msg)
 {
 	int status;
 
-	k_mutex_lock(&wimod_mutex, K_FOREVER);
-
-	k_timer_user_data_set(&wimod_timer, tx_message);
+	k_timer_user_data_set(&wimod_timer, tx_msg);
 	k_timer_start(&wimod_timer, K_SECONDS(1), 0);
-	LOG_DBG("sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_message->sap_id, tx_message->msg_id);
-	status = wimod_hci_send_message(tx_message);
+	LOG_DBG("sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
+	status = wimod_hci_send_message(tx_msg);
 	if (status != 0)
 	{
 		LOG_ERR("failed");
 		k_timer_stop(&wimod_timer);
-		k_mutex_unlock(&wimod_mutex);
+		tx_buffer_unlock();
 		return -1;
 	}
 
 	uint32_t timer_status = k_timer_status_sync(&wimod_timer);
 
-	k_mutex_unlock(&wimod_mutex);
+	tx_buffer_unlock();
 
 	return timer_status == 0 ? 0 : -1;
 }
@@ -212,11 +227,13 @@ static int wimod_send_message_block(wimod_hci_message_t* tx_message)
 int wimod_lorawan_reset()
 {
 	int status;
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_RESET_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	status = wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_RESET_REQ;
+	tx_msg->length = 0;
+
+	status = wimod_send_message_unlock(tx_msg);
 	if (status)
 	{
 		return status;
@@ -229,13 +246,13 @@ int wimod_lorawan_reset()
 
 int wimod_lorawan_factory_reset()
 {
-	// 1. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_FACTORY_RESET_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_FACTORY_RESET_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 //------------------------------------------------------------------------------
@@ -248,24 +265,24 @@ int wimod_lorawan_factory_reset()
 
 int wimod_lorawan_send_ping()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_PING_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_PING_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_get_device_info()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_GET_DEVICE_INFO_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_GET_DEVICE_INFO_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 //------------------------------------------------------------------------------
@@ -278,85 +295,85 @@ int wimod_lorawan_get_device_info()
 
 int wimod_lorawan_get_firmware_version()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_GET_FW_VERSION_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_GET_FW_VERSION_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_set_op_mode()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_SET_OPMODE_REQ ;
-	tx_message.length = 1;
-	tx_message.payload[0] = LORAWAN_OPERATION_MODE_CUSTOMER;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_SET_OPMODE_REQ ;
+	tx_msg->length = 1;
+	tx_msg->payload[0] = LORAWAN_OPERATION_MODE_CUSTOMER;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_get_op_mode()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_GET_OPMODE_REQ  ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_GET_OPMODE_REQ  ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_get_rtc()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_GET_RTC_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_GET_RTC_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_set_rtc()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_SET_RTC_REQ;
-	tx_message.length = 4;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	tx_message.payload[0] = 0;
-	tx_message.payload[1] = 0;
-	tx_message.payload[2] = 0;
-	tx_message.payload[3] = 0;
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_SET_RTC_REQ;
+	tx_msg->length = 4;
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->payload[0] = 0;
+	tx_msg->payload[1] = 0;
+	tx_msg->payload[2] = 0;
+	tx_msg->payload[3] = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_get_rtc_alarm()
 {
-	// 1. init header
-	tx_message.sap_id = DEVMGMT_SAP_ID;
-	tx_message.msg_id = DEVMGMT_MSG_GET_RTC_ALARM_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = DEVMGMT_SAP_ID;
+	tx_msg->msg_id = DEVMGMT_MSG_GET_RTC_ALARM_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_get_device_eui()
 {
-	// 1. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_GET_DEVICE_EUI_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_GET_DEVICE_EUI_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 
@@ -366,34 +383,36 @@ int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey)
 	size_t i;
 	char buf[5];
 
-	// 1. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_SET_JOIN_PARAM_REQ;
-	tx_message.length = 24;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
+
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_SET_JOIN_PARAM_REQ;
+	tx_msg->length = 24;
 
 	pos = appEui;
 	for (i = 0; i < 8; i++) {
 		sprintf(buf, "0x%c%c", pos[0+2*i], pos[1+2*i]);
-		tx_message.payload[i] = strtol(buf, NULL, 0);
+		tx_msg->payload[i] = strtol(buf, NULL, 0);
 	}
 
 	pos = appKey;
 	for (i = 0; i < 16; i++) {
 		sprintf(buf, "0x%c%c", pos[0+2*i], pos[1+2*i]);
-		tx_message.payload[8+i] = strtol(buf, NULL, 0);
+		tx_msg->payload[8+i] = strtol(buf, NULL, 0);
 	}
 
-	// 2. send HCI message with payload
-	return wimod_send_message_block(&tx_message);
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_reactivate(void)
 {
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_REACTIVATE_DEVICE_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_REACTIVATE_DEVICE_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 //------------------------------------------------------------------------------
@@ -406,56 +425,86 @@ int wimod_lorawan_reactivate(void)
 
 int wimod_lorawan_join_network_request(join_network_cb cb)
 {
-	// 1. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_JOIN_NETWORK_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
+
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_JOIN_NETWORK_REQ;
+	tx_msg->length = 0;
 
 	join_callback = cb;
 
-	// 2. send HCI message with payload
-	return wimod_send_message_block(&tx_message);
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_get_nwk_status()
 {
-	// 1. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_GET_NWK_STATUS_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_GET_NWK_STATUS_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_get_rstack_config()
 {
-	// 1. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_GET_RSTACK_CONFIG_REQ;
-	tx_message.length = 0;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_GET_RSTACK_CONFIG_REQ;
+	tx_msg->length = 0;
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 int wimod_lorawan_set_rstack_config()
 {
-	// 1. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_SET_RSTACK_CONFIG_REQ;
-	tx_message.length = 6;
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
-	tx_message.payload[0] = 0;
-	tx_message.payload[1] = 16;
-	tx_message.payload[2] = 0x01;
-	tx_message.payload[3] = 0x01;
-	tx_message.payload[4] = 7;
-	tx_message.payload[5] = 1;
-	tx_message.payload[6] = 15;
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_SET_RSTACK_CONFIG_REQ;
+	tx_msg->length = 6;
 
-	// 2. send HCI message without payload
-	return wimod_send_message_block(&tx_message);
+	tx_msg->payload[0] = 0;
+	tx_msg->payload[1] = 16;
+	tx_msg->payload[2] = 0x01;
+	tx_msg->payload[3] = 0x01;
+	tx_msg->payload[4] = 7;
+	tx_msg->payload[5] = 1;
+	tx_msg->payload[6] = 15;
+
+	return wimod_send_message_unlock(tx_msg);
+}
+
+static int wimod_lorawan_send_radio_data(u8_t port, const void* _src_data, int src_length, int confirmed)
+{
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
+
+	const u8_t* src_data = (const u8_t*)_src_data;
+
+	if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
+	{
+		tx_buffer_unlock();
+		return -1;
+	}
+
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	if (confirmed)
+	{
+		tx_msg->msg_id = LORAWAN_MSG_SEND_UDATA_REQ;
+	}
+	else
+	{
+		tx_msg->msg_id = LORAWAN_MSG_SEND_CDATA_REQ;
+	}
+	tx_msg->length = 1 + src_length;
+
+	tx_msg->payload[0] = port;
+
+	memcpy(&tx_msg->payload[1], src_data, src_length);
+
+	return wimod_send_message_unlock(tx_msg);
 }
 
 //------------------------------------------------------------------------------
@@ -465,31 +514,9 @@ int wimod_lorawan_set_rstack_config()
 //  @brief: send unconfirmed radio message
 //
 //------------------------------------------------------------------------------
-
 int wimod_lorawan_send_u_radio_data(u8_t port, const void* _src_data, int src_length)
 {
-	const u8_t* src_data = (const u8_t*)_src_data;
-	// 1. check length
-	if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
-	{
-		// error
-		return -1;
-	}
-
-	// 2. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_SEND_UDATA_REQ;
-	tx_message.length = 1 + src_length;
-
-	// 3.  init payload
-	// 3.1 init port
-	tx_message.payload[0] = port;
-
-	// 3.2 init radio message payload
-	memcpy(&tx_message.payload[1], src_data, src_length);
-
-	// 4. send HCI message with payload
-	return wimod_send_message_block(&tx_message);
+	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 0);
 }
 
 //------------------------------------------------------------------------------
@@ -502,29 +529,7 @@ int wimod_lorawan_send_u_radio_data(u8_t port, const void* _src_data, int src_le
 
 int wimod_lorawan_send_c_radio_data(u8_t port, const void* _src_data, int src_length)
 {
-	const u8_t* src_data = (const u8_t*)_src_data;
-
-	// 1. check length
-	if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
-	{
-		// error
-		return -1;
-	}
-
-	// 2. init header
-	tx_message.sap_id = LORAWAN_SAP_ID;
-	tx_message.msg_id = LORAWAN_MSG_SEND_CDATA_REQ;
-	tx_message.length = 1 + src_length;
-
-	// 3.  init payload
-	// 3.1 init port
-	tx_message.payload[0] = port;
-
-	// 3.2 init radio message payload
-	memcpy(&tx_message.payload[1], src_data, src_length);
-
-	// 4. send HCI message with payload
-	return wimod_send_message_block(&tx_message);
+	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 1);
 }
 
 //------------------------------------------------------------------------------
@@ -537,7 +542,6 @@ int wimod_lorawan_send_c_radio_data(u8_t port, const void* _src_data, int src_le
 
 void wimod_lorawan_process()
 {
-	// call HCI process
 	wimod_hci_process();
 }
 
@@ -549,12 +553,12 @@ void wimod_lorawan_process()
 //
 //------------------------------------------------------------------------------
 
-static wimod_hci_message_t* wimod_lorawan_process_rx_msg(wimod_hci_message_t* rx_msg)
+static wimod_hci_message_t* wimod_lorawan_process_rx_msg(wimod_hci_message_t *rx_msg)
 {
 	if (k_timer_remaining_get(&wimod_timer))
 	{
 		/*
-		 * IFF the timer is running, the wimod_send_message_block is still
+		 * IFF the timer is running, the wimod_send_message_unlock is still
 		 * waiting, and the user data is still valid (on the stack.)
 		 */
 		const wimod_hci_message_t *tx_msg = (wimod_hci_message_t *)k_timer_user_data_get(&wimod_timer);
@@ -585,7 +589,8 @@ static wimod_hci_message_t* wimod_lorawan_process_rx_msg(wimod_hci_message_t* rx
 			wimod_lorawan_process_lorawan_message(rx_msg);
 			break;
 	}
-	return &rx_message;
+
+	return rx_msg;
 }
 
 //------------------------------------------------------------------------------
@@ -596,7 +601,7 @@ static wimod_hci_message_t* wimod_lorawan_process_rx_msg(wimod_hci_message_t* rx
 //
 //------------------------------------------------------------------------------
 
-static void wimod_lorawan_process_devmgmt_message(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_process_devmgmt_message(const wimod_hci_message_t *rx_msg)
 {
 	LOG_DBG("here");
 	switch(rx_msg->msg_id)
@@ -643,7 +648,7 @@ static void wimod_lorawan_process_devmgmt_message(wimod_hci_message_t* rx_msg)
 	}
 }
 
-static void wimod_lorawan_devmgmt_device_info_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_devmgmt_device_info_rsp(const wimod_hci_message_t *rx_msg)
 {
 	wimod_lorawan_show_response("device info response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
 
@@ -669,11 +674,10 @@ static void wimod_lorawan_devmgmt_device_info_rsp(wimod_hci_message_t* rx_msg)
 //  @brief: show firmware version
 //
 //------------------------------------------------------------------------------
+static char help[11];
 
-static void wimod_lorawan_devmgmt_firmware_version_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_devmgmt_firmware_version_rsp(const wimod_hci_message_t *rx_msg)
 {
-	char help[80];
-
 	LOG_DBG("here");
 
 	wimod_lorawan_show_response("firmware version response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
@@ -681,7 +685,7 @@ static void wimod_lorawan_devmgmt_firmware_version_rsp(wimod_hci_message_t* rx_m
 	if (rx_msg->payload[0] == DEVMGMT_STATUS_OK)
 	{
 		LOG_DBG("version: V%d.%d", (int)rx_msg->payload[2], (int)rx_msg->payload[1]);
-		LOG_DBG("build-count: %d", (int)MAKEWORD(rx_msg->payload[3], rx_msg->payload[4]));
+		LOG_DBG("build-count: %d", (int)mk_uint16_t(&rx_msg->payload[3]));
 
 		memcpy(help, &rx_msg->payload[5], 10);
 		help[10] = 0;
@@ -691,19 +695,21 @@ static void wimod_lorawan_devmgmt_firmware_version_rsp(wimod_hci_message_t* rx_m
 		if (rx_msg->length > 15)
 		{
 			// add string termination
-			rx_msg->payload[rx_msg->length] = 0;
-			LOG_DBG("firmware-content: %s", &rx_msg->payload[15]);
+			char buffer[rx_msg->length - 15 + 1];
+			memcpy(buffer, &rx_msg->payload[15], rx_msg->length - 15);
+			buffer[rx_msg->length - 15] = 0;
+			LOG_DBG("firmware-content: %s", buffer);
 		}
 	}
 }
 
-static void wimod_lorawan_get_opmode_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_get_opmode_rsp(const wimod_hci_message_t *rx_msg)
 {
 	wimod_lorawan_show_response("get opmode response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
 	LOG_DBG("Operation mode: %d", rx_msg->payload[1]);
 }
 
-static void wimod_lorawan_get_rtc_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_get_rtc_rsp(const wimod_hci_message_t *rx_msg)
 {
 	u32_t rtc_value;
 
@@ -711,11 +717,7 @@ static void wimod_lorawan_get_rtc_rsp(wimod_hci_message_t* rx_msg)
 
 	if (rx_msg->payload[0] == DEVMGMT_STATUS_OK)
 	{
-		rtc_value = MAKELONG(MAKEWORD(rx_msg->payload[4], rx_msg->payload[3]),
-					MAKEWORD(rx_msg->payload[2], rx_msg->payload[1]));
-
-		rtc_value = MAKELONG(MAKEWORD(rx_msg->payload[1], rx_msg->payload[2]),
-					MAKEWORD(rx_msg->payload[3], rx_msg->payload[4]));
+		rtc_value = mk_uint32_t(&rx_msg->payload[1]);
 
 		LOG_DBG("RTC: %d-%02d-%02dT%02d:%02d:%02d", 2000+((rtc_value >> 26) & 0x3f)
 							, (rtc_value >> 12) & 0x0f
@@ -729,7 +731,7 @@ static void wimod_lorawan_get_rtc_rsp(wimod_hci_message_t* rx_msg)
 	}
 }
 
-static void wimod_lorawan_get_rtc_alarm_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_get_rtc_alarm_rsp(const wimod_hci_message_t *rx_msg)
 {
 	wimod_lorawan_show_response("get rtc alarm response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
 
@@ -740,22 +742,19 @@ static void wimod_lorawan_get_rtc_alarm_rsp(wimod_hci_message_t* rx_msg)
 	}
 }
 
-static void wimod_lorawan_device_eui_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_device_eui_rsp(const wimod_hci_message_t *rx_msg)
 {
 	u32_t eui_lsb;
 	u32_t eui_msb;
 	wimod_lorawan_show_response("device EUI response",
 			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
 
-	eui_lsb = MAKELONG(MAKEWORD(rx_msg->payload[8], rx_msg->payload[7]),
-			MAKEWORD(rx_msg->payload[6], rx_msg->payload[5]));
-	eui_msb = MAKELONG(MAKEWORD(rx_msg->payload[4], rx_msg->payload[3]),
-			MAKEWORD(rx_msg->payload[2], rx_msg->payload[1]));
-
+	eui_lsb = sys_be32_to_cpu(mk_uint32_t(&rx_msg->payload[5]));
+	eui_msb = sys_be32_to_cpu(mk_uint32_t(&rx_msg->payload[1]));
 	LOG_INF("64-Bit Device EUI: 0x%08x%08x", eui_msb, eui_lsb);
 }
 
-static void wimod_lorawan_process_nwk_status_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_process_nwk_status_rsp(const wimod_hci_message_t *rx_msg)
 {
 	uint32_t device_address;
 
@@ -764,11 +763,9 @@ static void wimod_lorawan_process_nwk_status_rsp(wimod_hci_message_t* rx_msg)
 
 	LOG_DBG("Network Status: 0x%02X", rx_msg->payload[1]);
 
-	if(rx_msg->length > 2){
-
-		device_address = MAKELONG(MAKEWORD(rx_msg->payload[5], rx_msg->payload[4]),
-					MAKEWORD(rx_msg->payload[3], rx_msg->payload[2]));
-
+	if(rx_msg->length > 2)
+	{
+		device_address = mk_uint32_t(&rx_msg->payload[2]);
 		LOG_DBG("Device Address: 0x%06"PRIx32, device_address);
 		LOG_DBG("Data Rate Index: %d", rx_msg->payload[6]);
 		LOG_DBG("Power Level: %d", rx_msg->payload[7]);
@@ -776,7 +773,7 @@ static void wimod_lorawan_process_nwk_status_rsp(wimod_hci_message_t* rx_msg)
 	}
 }
 
-static void wimod_lorawan_process_rstack_config_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_process_rstack_config_rsp(const wimod_hci_message_t *rx_msg)
 {
 	wimod_lorawan_show_response("radio stack config response",
 			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
@@ -797,7 +794,7 @@ static void wimod_lorawan_process_rstack_config_rsp(wimod_hci_message_t* rx_msg)
 
 }
 
-static void wimod_lorawan_process_send_data_rsp(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_process_send_data_rsp(const wimod_hci_message_t *rx_msg)
 {
 	u32_t time_remaining_ms;
 
@@ -806,8 +803,7 @@ static void wimod_lorawan_process_send_data_rsp(wimod_hci_message_t* rx_msg)
 
 	if(rx_msg->length > 1){
 
-		time_remaining_ms = MAKELONG(MAKEWORD(rx_msg->payload[1], rx_msg->payload[2]),
-					MAKEWORD(rx_msg->payload[3], rx_msg->payload[4]));
+		time_remaining_ms = mk_uint32_t(&rx_msg->payload[1]);
 
 		LOG_DBG("Channel blocked. Time remaining (ms): %d", time_remaining_ms);
 	}
@@ -821,7 +817,7 @@ static void wimod_lorawan_process_send_data_rsp(wimod_hci_message_t* rx_msg)
 //
 //------------------------------------------------------------------------------
 
-static void wimod_lorawan_process_lorawan_message(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_msg)
 {
 	LOG_DBG("msg_id:%d", rx_msg->msg_id);
 
@@ -909,7 +905,7 @@ static void wimod_lorawan_process_lorawan_message(wimod_hci_message_t* rx_msg)
 //
 //------------------------------------------------------------------------------
 
-static void wimod_lorawan_process_join_tx_indication(wimod_hci_message_t* rx_msg)
+static void wimod_lorawan_process_join_tx_indication(const wimod_hci_message_t *rx_msg)
 {
 	if (rx_msg->payload[0] == 0)
 	{
@@ -934,14 +930,12 @@ static void wimod_lorawan_process_join_tx_indication(wimod_hci_message_t* rx_msg
 //
 //------------------------------------------------------------------------------
 
-void wimod_lorawan_process_join_network_indication(wimod_hci_message_t* rx_msg)
+void wimod_lorawan_process_join_network_indication(const wimod_hci_message_t *rx_msg)
 {
 	if (rx_msg->payload[0] == 0)
 	{
-		u32_t address = MAKELONG(MAKEWORD(rx_msg->payload[1],rx_msg->payload[2]),
-								MAKEWORD(rx_msg->payload[3],rx_msg->payload[4]));
-
-		LOG_DBG("join network accept event - DeviceAddress:0x%08X", address);
+		uint32_t address = mk_uint32_t(&rx_msg->payload[1]);
+		LOG_DBG("join network accept event - DeviceAddress:0x%08"PRIx32, address);
 
 		if(join_callback){
 			(*join_callback)();
@@ -949,10 +943,8 @@ void wimod_lorawan_process_join_network_indication(wimod_hci_message_t* rx_msg)
 	}
 	else if (rx_msg->payload[0] == 1)
 	{
-		u32_t address = MAKELONG(MAKEWORD(rx_msg->payload[1],rx_msg->payload[2]),
-								MAKEWORD(rx_msg->payload[3],rx_msg->payload[4]));
-
-		LOG_DBG("join network accept event - DeviceAddress:0x%08X, ChnIdx:%d, DR:%d, RSSI:%d, SNR:%d, RxSlot:%d", address,
+		uint32_t address = mk_uint32_t(&rx_msg->payload[1]);
+		LOG_DBG("join network accept event - DeviceAddress:0x%08"PRIx32", ChnIdx:%d, DR:%d, RSSI:%d, SNR:%d, RxSlot:%d", address,
 			(int)rx_msg->payload[5], (int)rx_msg->payload[6], (int)rx_msg->payload[7],
 			(int)rx_msg->payload[8], (int)rx_msg->payload[9]);
 
@@ -974,7 +966,7 @@ void wimod_lorawan_process_join_network_indication(wimod_hci_message_t* rx_msg)
 //
 //------------------------------------------------------------------------------
 
-void wimod_lorawan_process_u_data_rx_indication(wimod_hci_message_t* rx_msg)
+void wimod_lorawan_process_u_data_rx_indication(const wimod_hci_message_t *rx_msg)
 {
 	int payload_size = rx_msg->length - 1;
 
@@ -1004,7 +996,7 @@ void wimod_lorawan_process_u_data_rx_indication(wimod_hci_message_t* rx_msg)
 	// rx channel info attached ?
 	if (rx_msg->payload[0] & 0x01)
 	{
-		u8_t* rxInfo = &rx_msg->payload[1 + payload_size];
+		const u8_t* rxInfo = &rx_msg->payload[1 + payload_size];
 		LOG_DBG("ChnIdx:%d, DR:%d, RSSI:%d, SNR:%d, RxSlot:%d",
 			(int)rxInfo[0], (int)rxInfo[1], (int)rxInfo[2],
 			(int)rxInfo[3], (int)rxInfo[4]);
@@ -1019,7 +1011,7 @@ void wimod_lorawan_process_u_data_rx_indication(wimod_hci_message_t* rx_msg)
 //
 //------------------------------------------------------------------------------
 
-void wimod_lorawan_process_c_data_rx_indication(wimod_hci_message_t* rx_msg)
+void wimod_lorawan_process_c_data_rx_indication(const wimod_hci_message_t *rx_msg)
 {
 	int payload_size = rx_msg->length - 1;
 
@@ -1050,7 +1042,7 @@ void wimod_lorawan_process_c_data_rx_indication(wimod_hci_message_t* rx_msg)
 	// rx channel info attached ?
 	if (rx_msg->payload[0] & 0x01)
 	{
-		u8_t* rxInfo = &rx_msg->payload[1 + payload_size];
+		const u8_t* rxInfo = &rx_msg->payload[1 + payload_size];
 		LOG_DBG("ChnIdx:%d, DR:%d, RSSI:%d, SNR:%d, RxSlot:%d",
 			(int)rxInfo[0], (int)rxInfo[1], (int)rxInfo[2],
 			(int)rxInfo[3], (int)rxInfo[4]);
