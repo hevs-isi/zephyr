@@ -29,6 +29,13 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(wimod_lorawan_api, LOG_LEVEL_DBG);
 
+static uint32_t mk_uint16_t(const uint8_t *buffer)
+{
+	uint16_t tmp;
+	memcpy(&tmp, buffer, sizeof(tmp));
+	return sys_le16_to_cpu(tmp);
+}
+
 static uint32_t mk_uint32_t(const uint8_t *buffer)
 {
 	uint32_t tmp;
@@ -36,11 +43,11 @@ static uint32_t mk_uint32_t(const uint8_t *buffer)
 	return sys_le32_to_cpu(tmp);
 }
 
-static uint32_t mk_uint16_t(const uint8_t *buffer)
+static uint64_t mk_uint64_t(const uint8_t *buffer)
 {
-	uint16_t tmp;
+	uint64_t tmp;
 	memcpy(&tmp, buffer, sizeof(tmp));
-	return sys_le16_to_cpu(tmp);
+	return sys_le64_to_cpu(tmp);
 }
 
 // Status Codes for DeviceMgmt Response Messages
@@ -255,6 +262,30 @@ int wimod_lorawan_get_nwk_status(struct lw_net_status_t *nws)
 	return nws->status;
 }
 
+int wimod_lorawan_get_device_eui(struct lw_dev_eui_t *eui)
+{
+	if (!eui)
+	{
+		return -EINVAL;
+	}
+
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
+
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_GET_DEVICE_EUI_REQ;
+	tx_msg->length = 0;
+	tx_msg->result = eui;
+
+	int status = wimod_send_message_unlock(tx_msg);
+
+	if (status)
+	{
+		return status;
+	}
+
+	return eui->status;
+}
+
 int wimod_lorawan_set_op_mode()
 {
 	wimod_hci_message_t *tx_msg = tx_buffer_lock();
@@ -315,18 +346,6 @@ int wimod_lorawan_get_rtc_alarm()
 
 	return wimod_send_message_unlock(tx_msg);
 }
-
-int wimod_lorawan_get_device_eui()
-{
-	wimod_hci_message_t *tx_msg = tx_buffer_lock();
-
-	tx_msg->sap_id = LORAWAN_SAP_ID;
-	tx_msg->msg_id = LORAWAN_MSG_GET_DEVICE_EUI_REQ;
-	tx_msg->length = 0;
-
-	return wimod_send_message_unlock(tx_msg);
-}
-
 
 int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey)
 {
@@ -641,6 +660,30 @@ static void wimod_lorawan_process_nwk_status_rsp(const wimod_hci_message_t *rx_m
 	}
 }
 
+static void wimod_lorawan_device_eui_rsp(const wimod_hci_message_t *rx_msg, void *result)
+{
+	struct lw_dev_eui_t *eui = (struct lw_dev_eui_t *)result;
+
+	wimod_lorawan_show_response("device EUI response",
+			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
+
+	if (!result)
+	{
+		LOG_ERR("result is NULL");
+		return ;
+	}
+
+	memset(eui, 0x00, sizeof(*eui));
+	if (!rx_msg->payload[0] == DEVMGMT_STATUS_OK)
+	{
+		eui->status = -EIO;
+		return;
+	}
+
+	eui->eui = sys_be64_to_cpu(mk_uint64_t(&rx_msg->payload[1]));
+	LOG_INF("64-Bit Device EUI: 0x%016"PRIx64, eui->eui);
+}
+
 static void wimod_lorawan_get_opmode_rsp(const wimod_hci_message_t *rx_msg)
 {
 	wimod_lorawan_show_response("get opmode response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
@@ -678,18 +721,6 @@ static void wimod_lorawan_get_rtc_alarm_rsp(const wimod_hci_message_t *rx_msg)
 		LOG_DBG("Alarm Status: %d", rx_msg->payload[1]);
 		LOG_DBG("Options: %d", rx_msg->payload[2]);
 	}
-}
-
-static void wimod_lorawan_device_eui_rsp(const wimod_hci_message_t *rx_msg)
-{
-	u32_t eui_lsb;
-	u32_t eui_msb;
-	wimod_lorawan_show_response("device EUI response",
-			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
-
-	eui_lsb = sys_be32_to_cpu(mk_uint32_t(&rx_msg->payload[5]));
-	eui_msb = sys_be32_to_cpu(mk_uint32_t(&rx_msg->payload[1]));
-	LOG_INF("64-Bit Device EUI: 0x%08x%08x", eui_msb, eui_lsb);
 }
 
 static void wimod_lorawan_process_rstack_config_rsp(const wimod_hci_message_t *rx_msg)
@@ -950,7 +981,7 @@ static void wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_
 	switch(rx_msg->msg_id)
 	{
 		case	LORAWAN_MSG_GET_DEVICE_EUI_RSP:
-			wimod_lorawan_device_eui_rsp(rx_msg);
+			wimod_lorawan_device_eui_rsp(rx_msg, result);
 		break;
 
 		case	LORAWAN_MSG_JOIN_NETWORK_RSP:

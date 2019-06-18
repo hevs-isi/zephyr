@@ -208,10 +208,17 @@ struct lw_net_status_t
 
 int wimod_lorawan_get_nwk_status(struct lw_net_status_t *nws);
 
+struct lw_dev_eui_t
+{
+	int status;
+	uint64_t eui;
+};
+
+int wimod_lorawan_get_device_eui(struct lw_dev_eui_t *eui);
+
 int wimod_lorawan_set_op_mode();
 int wimod_lorawan_get_op_mode();
 
-int wimod_lorawan_get_device_eui();
 int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey);
 
 // join network

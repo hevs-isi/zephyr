@@ -124,6 +124,27 @@ static int shell_nwk_status(const struct shell *shell, size_t argc, char *argv[]
 	return 0;
 }
 
+
+static int shell_cmd_deveui(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_connected(shell);
+
+	struct lw_dev_eui_t eui;
+
+	int status = wimod_lorawan_get_device_eui(&eui);
+	if (status)
+	{
+		shell_error(shell, "failed");
+		return 0;
+	}
+
+	shell_print(shell, "eui: 0x%016"PRIx64, eui.eui);
+
+	return 0;
+}
+
 static int shell_cmd_custom(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -186,17 +207,6 @@ static int shell_factory_reset(const struct shell *shell, size_t argc, char *arg
 	shell_connected(shell);
 
 	wimod_lorawan_factory_reset();
-
-	return 0;
-}
-
-static int shell_cmd_deveui(const struct shell *shell, size_t argc, char *argv[])
-{
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-	shell_connected(shell);
-
-	wimod_lorawan_get_device_eui();
 
 	return 0;
 }
