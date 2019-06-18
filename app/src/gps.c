@@ -148,7 +148,7 @@ void gps_thread(void *u1, void *u2, void *u3)
 	{
 		struct data_item_t *buffer = k_fifo_get(&gps_fifo, K_FOREVER);
 
-		LOG_DBG("gps rx:'%s'", buffer->data);
+		LOG_DBG("gps rx:'%s'", log_strdup(buffer->data));
 	}
 }
 

@@ -12,10 +12,9 @@ LOG_MODULE_REGISTER(rtc, LOG_LEVEL_DBG);
 
 static struct device *rtc;
 
-static char buf[40];
-
 int app_rtc_init(void)
 {
+	char buf[40];
 	int ok;
 	rtc = device_get_binding(DT_RTC_0_NAME);
 
@@ -26,11 +25,11 @@ int app_rtc_init(void)
 
 	if (ok)
 	{
-		LOG_INF("Sytem date:%s", &buf[0]);
+		LOG_INF("Sytem date:%s", log_strdup(&buf[0]));
 	}
 	else
 	{
-		LOG_ERR("Wrong sytem date:%s", &buf[0]);
+		LOG_ERR("Wrong sytem date:%s", log_strdup(&buf[0]));
 	}
 
 	return !ok;
