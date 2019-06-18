@@ -43,78 +43,6 @@ static uint32_t mk_uint16_t(const uint8_t *buffer)
 	return sys_le16_to_cpu(tmp);
 }
 
-
-//------------------------------------------------------------------------------
-//
-//  Forward Declarations
-//
-//------------------------------------------------------------------------------
-
-// HCI Message Receiver callback
-static wimod_hci_message_t*
-wimod_lorawan_process_rx_msg(wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_process_devmgmt_message(const wimod_hci_message_t *rx_msg, void *result);
-
-static void
-wimod_lorawan_devmgmt_device_info_rsp(const wimod_hci_message_t *rx_msg, void *result);
-
-static void
-wimod_lorawan_devmgmt_firmware_version_rsp(const wimod_hci_message_t *rx_msg, void *result);
-
-static void
-wimod_lorawan_get_opmode_rsp(const wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_get_rtc_rsp(const wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_get_rtc_alarm_rsp(const wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_msg, void *result);
-
-static void
-wimod_lorawan_process_join_tx_indication(const wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_process_join_network_indication(const wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_process_u_data_rx_indication(const wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_process_c_data_rx_indication(const wimod_hci_message_t *rx_msg);
-
-static void
-wimod_lorawan_show_response(const char* string, const id_string_t* status_table, u8_t status_id);
-
-static void
-wimod_lorawan_show_response_tx(const char* string, const id_string_t* status_table, u8_t status_id);
-
-//------------------------------------------------------------------------------
-//
-//  Section RAM
-//
-//------------------------------------------------------------------------------
-
-// reserve one Tx-Message
-static wimod_hci_message_t tx_buffer;
-
-// reserve one Rx-Message
-static wimod_hci_message_t rx_buffer;
-
-// network join callback function
-static join_network_cb join_callback;
-
-
-//------------------------------------------------------------------------------
-//
-//  Section Const
-//
-//------------------------------------------------------------------------------
-
 // Status Codes for DeviceMgmt Response Messages
 static const id_string_t wimod_device_mgmt_status_strings[] =
 {
@@ -147,35 +75,17 @@ static const id_string_t wimod_lorawan_status_strings[] =
 	// end of table
 	{ 0, 0 }
 };
-//------------------------------------------------------------------------------
-//
-//  Section Code
-//
-//------------------------------------------------------------------------------
 
-//------------------------------------------------------------------------------
-//
-//  Init
-//
-//  @brief: init complete interface
-//
-//------------------------------------------------------------------------------
+// reserve one Tx-Message
+static wimod_hci_message_t tx_buffer;
+
+// reserve one Rx-Message
+static wimod_hci_message_t rx_buffer;
+
+// network join callback function
+static join_network_cb join_callback;
 
 static K_MUTEX_DEFINE(wimod_mutex);
-
-int wimod_lorawan_init()
-{
-	// init HCI layer
-	int status;
-
-	k_mutex_lock(&wimod_mutex, K_FOREVER);
-
-	status = wimod_hci_init(wimod_lorawan_process_rx_msg, &rx_buffer);
-
-	k_mutex_unlock(&wimod_mutex);
-
-	return status;
-}
 
 static void wimod_timer_stop_handler(struct k_timer *timer_id)
 {
@@ -564,107 +474,42 @@ void wimod_lorawan_process()
 
 //------------------------------------------------------------------------------
 //
-//  Process
+//  wimod_lorawan_show_response
 //
-//  @brief: handle receiver process
+//  @brief: show response status as human readable string
 //
 //------------------------------------------------------------------------------
 
-static wimod_hci_message_t* wimod_lorawan_process_rx_msg(wimod_hci_message_t *rx_msg)
+static void wimod_lorawan_show_response(const char* str, const id_string_t* status_table, u8_t status_id)
 {
-	void *result = NULL;
-
-	if (k_timer_remaining_get(&wimod_timer))
+	while(status_table->string)
 	{
-		/*
-		 * IFF the timer is running, the wimod_send_message_unlock is still
-		 * waiting, and the user data is still valid (on the stack.)
-		 */
-		const wimod_hci_message_t *tx_msg = (wimod_hci_message_t *)k_timer_user_data_get(&wimod_timer);
-
-		/*
-		 * Stop the timer only if this is a the _RSP according to the last _REQ.
-		 * According to the spec, the _RSP is always _REQ+1.
-		 * The _RSP should have the same SAP_ID.
-		 */
-		LOG_DBG("tx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
-		LOG_DBG("rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
-
-		if ((tx_msg->sap_id == rx_msg->sap_id) && (tx_msg->msg_id+1 == rx_msg->msg_id))
+		if (status_table->id == status_id)
 		{
-			k_timer_stop(&wimod_timer);
-			result = tx_msg->result;
+			LOG_DBG("%s: - Status(0x%02X) : %s", str, status_id, status_table->string);
+			return;
 		}
+
+		status_table++;
 	}
-
-	LOG_DBG("here");
-	switch(rx_msg->sap_id)
-	{
-		case DEVMGMT_SAP_ID:
-			wimod_lorawan_process_devmgmt_message(rx_msg, result);
-			break;
-
-
-		case LORAWAN_SAP_ID:
-			wimod_lorawan_process_lorawan_message(rx_msg, result);
-			break;
-	}
-
-	return rx_msg;
 }
 
-//------------------------------------------------------------------------------
-//
-//  Process_DevMgmt_Message
-//
-//  @brief: handle received Device Management SAP messages
-//
-//------------------------------------------------------------------------------
-
-static void wimod_lorawan_process_devmgmt_message(const wimod_hci_message_t *rx_msg, void *result)
+static void wimod_lorawan_show_response_tx(const char* str, const id_string_t* status_table, u8_t status_id)
 {
-	LOG_DBG("here");
-	switch(rx_msg->msg_id)
+	/* status for IND_TX messages are OK when status is 0x01.
+	* So display status 0x01, and string for 0x00.
+	*/
+	uint32_t status_id2 = (status_id == 0x01 ? DEVMGMT_STATUS_OK : status_id);
+
+	while(status_table->string)
 	{
-		case	DEVMGMT_MSG_RESET_RSP:
-			LOG_DBG("device reset");
-		break;
+		if (status_table->id == status_id2)
+		{
+			LOG_DBG("%s: - Status(0x%02X) : %s", str, status_id, status_table->string);
+			return;
+		}
 
-		case	DEVMGMT_MSG_PING_RSP:
-			wimod_lorawan_show_response("ping response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	DEVMGMT_MSG_GET_DEVICE_INFO_RSP:
-			wimod_lorawan_devmgmt_device_info_rsp(rx_msg, result);
-		break;
-
-		case	DEVMGMT_MSG_GET_FW_VERSION_RSP:
-			wimod_lorawan_devmgmt_firmware_version_rsp(rx_msg, result);
-		break;
-
-		case	DEVMGMT_MSG_SET_OPMODE_RSP:
-			wimod_lorawan_show_response("set opmode response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	DEVMGMT_MSG_GET_OPMODE_RSP:
-			wimod_lorawan_get_opmode_rsp(rx_msg);
-		break;
-
-		case	DEVMGMT_MSG_GET_RTC_RSP:
-			wimod_lorawan_get_rtc_rsp(rx_msg);
-		break;
-
-		case	DEVMGMT_MSG_SET_RTC_RSP:
-			wimod_lorawan_show_response("set rtc response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	DEVMGMT_MSG_GET_RTC_ALARM_RSP:
-			wimod_lorawan_get_rtc_alarm_rsp(rx_msg);
-		break;
-
-		default:
-			LOG_DBG("unhandled DeviceMgmt message received - msg_id : 0x%02X", (u8_t)rx_msg->msg_id);
-		break;
+		status_table++;
 	}
 }
 
@@ -851,94 +696,6 @@ static void wimod_lorawan_process_send_data_rsp(const wimod_hci_message_t *rx_ms
 
 //------------------------------------------------------------------------------
 //
-//  Process_LoRaWAN_Message
-//
-//  @brief: handle received LoRaWAN SAP messages
-//
-//------------------------------------------------------------------------------
-
-static void wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_msg, void *result)
-{
-	LOG_DBG("msg_id:%d", rx_msg->msg_id);
-
-	switch(rx_msg->msg_id)
-	{
-		case	LORAWAN_MSG_GET_DEVICE_EUI_RSP:
-			wimod_lorawan_device_eui_rsp(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_JOIN_NETWORK_RSP:
-			wimod_lorawan_show_response("join network response", wimod_lorawan_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	LORAWAN_MSG_FACTORY_RESET_RSP:
-			wimod_lorawan_show_response("factory reset response", wimod_lorawan_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	LORAWAN_MSG_SET_JOIN_PARAM_RSP:
-			wimod_lorawan_show_response("set join param response", wimod_lorawan_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	LORAWAN_MSG_SET_RSTACK_CONFIG_RSP:
-			wimod_lorawan_show_response("set rstack response", wimod_lorawan_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	LORAWAN_MSG_SEND_UDATA_RSP:
-			wimod_lorawan_show_response("send U-Data response", wimod_lorawan_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	LORAWAN_MSG_SEND_CDATA_RSP:
-			wimod_lorawan_process_send_data_rsp(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_GET_NWK_STATUS_RSP:
-			wimod_lorawan_process_nwk_status_rsp(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_GET_RSTACK_CONFIG_RSP:
-			wimod_lorawan_process_rstack_config_rsp(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_JOIN_NETWORK_TX_IND:
-			wimod_lorawan_process_join_tx_indication(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_SEND_UDATA_TX_IND:
-			wimod_lorawan_show_response_tx("send U-Data TX indication", wimod_lorawan_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	LORAWAN_MSG_SEND_CDATA_TX_IND:
-			wimod_lorawan_show_response_tx("send C-Data TX indication", wimod_lorawan_status_strings, rx_msg->payload[0]);
-		break;
-
-		case	LORAWAN_MSG_JOIN_NETWORK_IND:
-			wimod_lorawan_process_join_network_indication(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_RECV_UDATA_IND:
-			wimod_lorawan_process_u_data_rx_indication(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_RECV_CDATA_IND:
-			wimod_lorawan_process_c_data_rx_indication(rx_msg);
-		break;
-
-		case	LORAWAN_MSG_RECV_NO_DATA_IND:
-			LOG_DBG("no data received indication");
-			if(rx_msg->payload[0] == 1)
-			{
-				LOG_DBG("Error Code: 0x%02X", rx_msg->payload[1]);
-			}
-		break;
-
-		default:
-			LOG_DBG("unhandled LoRaWAN SAP message received - msg_id : 0x%02X", (u8_t)rx_msg->msg_id);
-		break;
-	}
-}
-
-//------------------------------------------------------------------------------
-//
 //  wimod_lorawan_process_JoinTxIndication
 //
 //  @brief: show join transmit indicaton
@@ -1091,44 +848,216 @@ void wimod_lorawan_process_c_data_rx_indication(const wimod_hci_message_t *rx_ms
 
 //------------------------------------------------------------------------------
 //
-//  wimod_lorawan_show_response
+//  Process_DevMgmt_Message
 //
-//  @brief: show response status as human readable string
+//  @brief: handle received Device Management SAP messages
 //
 //------------------------------------------------------------------------------
 
-static void wimod_lorawan_show_response(const char* str, const id_string_t* status_table, u8_t status_id)
+static void wimod_lorawan_process_devmgmt_message(const wimod_hci_message_t *rx_msg, void *result)
 {
-	while(status_table->string)
+	LOG_DBG("here");
+	switch(rx_msg->msg_id)
 	{
-		if (status_table->id == status_id)
-		{
-			LOG_DBG("%s: - Status(0x%02X) : %s", str, status_id, status_table->string);
-			return;
-		}
+		case	DEVMGMT_MSG_RESET_RSP:
+			LOG_DBG("device reset");
+		break;
 
-		status_table++;
+		case	DEVMGMT_MSG_PING_RSP:
+			wimod_lorawan_show_response("ping response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	DEVMGMT_MSG_GET_DEVICE_INFO_RSP:
+			wimod_lorawan_devmgmt_device_info_rsp(rx_msg, result);
+		break;
+
+		case	DEVMGMT_MSG_GET_FW_VERSION_RSP:
+			wimod_lorawan_devmgmt_firmware_version_rsp(rx_msg, result);
+		break;
+
+		case	DEVMGMT_MSG_SET_OPMODE_RSP:
+			wimod_lorawan_show_response("set opmode response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	DEVMGMT_MSG_GET_OPMODE_RSP:
+			wimod_lorawan_get_opmode_rsp(rx_msg);
+		break;
+
+		case	DEVMGMT_MSG_GET_RTC_RSP:
+			wimod_lorawan_get_rtc_rsp(rx_msg);
+		break;
+
+		case	DEVMGMT_MSG_SET_RTC_RSP:
+			wimod_lorawan_show_response("set rtc response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	DEVMGMT_MSG_GET_RTC_ALARM_RSP:
+			wimod_lorawan_get_rtc_alarm_rsp(rx_msg);
+		break;
+
+		default:
+			LOG_DBG("unhandled DeviceMgmt message received - msg_id : 0x%02X", (u8_t)rx_msg->msg_id);
+		break;
 	}
 }
 
-static void wimod_lorawan_show_response_tx(const char* str, const id_string_t* status_table, u8_t status_id)
+//------------------------------------------------------------------------------
+//
+//  Process_LoRaWAN_Message
+//
+//  @brief: handle received LoRaWAN SAP messages
+//
+//------------------------------------------------------------------------------
+
+static void wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_msg, void *result)
 {
-	/* status for IND_TX messages are OK when status is 0x01.
-	* So display status 0x01, and string for 0x00.
-	*/
-	uint32_t status_id2 = (status_id == 0x01 ? DEVMGMT_STATUS_OK : status_id);
+	LOG_DBG("msg_id:%d", rx_msg->msg_id);
 
-	while(status_table->string)
+	switch(rx_msg->msg_id)
 	{
-		if (status_table->id == status_id2)
-		{
-			LOG_DBG("%s: - Status(0x%02X) : %s", str, status_id, status_table->string);
-			return;
-		}
+		case	LORAWAN_MSG_GET_DEVICE_EUI_RSP:
+			wimod_lorawan_device_eui_rsp(rx_msg);
+		break;
 
-		status_table++;
+		case	LORAWAN_MSG_JOIN_NETWORK_RSP:
+			wimod_lorawan_show_response("join network response", wimod_lorawan_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	LORAWAN_MSG_FACTORY_RESET_RSP:
+			wimod_lorawan_show_response("factory reset response", wimod_lorawan_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	LORAWAN_MSG_SET_JOIN_PARAM_RSP:
+			wimod_lorawan_show_response("set join param response", wimod_lorawan_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	LORAWAN_MSG_SET_RSTACK_CONFIG_RSP:
+			wimod_lorawan_show_response("set rstack response", wimod_lorawan_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	LORAWAN_MSG_SEND_UDATA_RSP:
+			wimod_lorawan_show_response("send U-Data response", wimod_lorawan_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	LORAWAN_MSG_SEND_CDATA_RSP:
+			wimod_lorawan_process_send_data_rsp(rx_msg);
+		break;
+
+		case	LORAWAN_MSG_GET_NWK_STATUS_RSP:
+			wimod_lorawan_process_nwk_status_rsp(rx_msg);
+		break;
+
+		case	LORAWAN_MSG_GET_RSTACK_CONFIG_RSP:
+			wimod_lorawan_process_rstack_config_rsp(rx_msg);
+		break;
+
+		case	LORAWAN_MSG_JOIN_NETWORK_TX_IND:
+			wimod_lorawan_process_join_tx_indication(rx_msg);
+		break;
+
+		case	LORAWAN_MSG_SEND_UDATA_TX_IND:
+			wimod_lorawan_show_response_tx("send U-Data TX indication", wimod_lorawan_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	LORAWAN_MSG_SEND_CDATA_TX_IND:
+			wimod_lorawan_show_response_tx("send C-Data TX indication", wimod_lorawan_status_strings, rx_msg->payload[0]);
+		break;
+
+		case	LORAWAN_MSG_JOIN_NETWORK_IND:
+			wimod_lorawan_process_join_network_indication(rx_msg);
+		break;
+
+		case	LORAWAN_MSG_RECV_UDATA_IND:
+			wimod_lorawan_process_u_data_rx_indication(rx_msg);
+		break;
+
+		case	LORAWAN_MSG_RECV_CDATA_IND:
+			wimod_lorawan_process_c_data_rx_indication(rx_msg);
+		break;
+
+		case	LORAWAN_MSG_RECV_NO_DATA_IND:
+			LOG_DBG("no data received indication");
+			if(rx_msg->payload[0] == 1)
+			{
+				LOG_DBG("Error Code: 0x%02X", rx_msg->payload[1]);
+			}
+		break;
+
+		default:
+			LOG_DBG("unhandled LoRaWAN SAP message received - msg_id : 0x%02X", (u8_t)rx_msg->msg_id);
+		break;
 	}
 }
+
 //------------------------------------------------------------------------------
-// end of file
+//
+//  Process
+//
+//  @brief: handle receiver process
+//
 //------------------------------------------------------------------------------
+
+static wimod_hci_message_t* wimod_lorawan_process_rx_msg(wimod_hci_message_t *rx_msg)
+{
+	void *result = NULL;
+
+	if (k_timer_remaining_get(&wimod_timer))
+	{
+		/*
+		 * IFF the timer is running, the wimod_send_message_unlock is still
+		 * waiting, and the user data is still valid (on the stack.)
+		 */
+		const wimod_hci_message_t *tx_msg = (wimod_hci_message_t *)k_timer_user_data_get(&wimod_timer);
+
+		/*
+		 * Stop the timer only if this is a the _RSP according to the last _REQ.
+		 * According to the spec, the _RSP is always _REQ+1.
+		 * The _RSP should have the same SAP_ID.
+		 */
+		LOG_DBG("tx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
+		LOG_DBG("rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+
+		if ((tx_msg->sap_id == rx_msg->sap_id) && (tx_msg->msg_id+1 == rx_msg->msg_id))
+		{
+			k_timer_stop(&wimod_timer);
+			result = tx_msg->result;
+		}
+	}
+
+	LOG_DBG("here");
+	switch(rx_msg->sap_id)
+	{
+		case DEVMGMT_SAP_ID:
+			wimod_lorawan_process_devmgmt_message(rx_msg, result);
+			break;
+
+
+		case LORAWAN_SAP_ID:
+			wimod_lorawan_process_lorawan_message(rx_msg, result);
+			break;
+	}
+
+	return rx_msg;
+}
+
+//------------------------------------------------------------------------------
+//
+//  Init
+//
+//  @brief: init complete interface
+//
+//------------------------------------------------------------------------------
+
+int wimod_lorawan_init()
+{
+	// init HCI layer
+	int status;
+
+	k_mutex_lock(&wimod_mutex, K_FOREVER);
+
+	status = wimod_hci_init(wimod_lorawan_process_rx_msg, &rx_buffer);
+
+	k_mutex_unlock(&wimod_mutex);
+
+	return status;
+}
