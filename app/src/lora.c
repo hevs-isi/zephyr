@@ -217,7 +217,7 @@ static int decode_config(uint32_t port, const uint8_t *data, size_t size)
 
 	uint8_t version = data[0];
 
-	if (version != 3)
+	if (version != 3 || version !=4)
 	{
 		return -EINVAL;
 	}

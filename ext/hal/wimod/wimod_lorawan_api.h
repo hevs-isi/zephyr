@@ -148,8 +148,6 @@
 #define LORAWAN_OPERATION_MODE_DEFAULT	0
 #define LORAWAN_OPERATION_MODE_CUSTOMER	3
 
-
-
 // helper struct for ID -> string conversion
 typedef struct
 {
@@ -167,6 +165,9 @@ typedef void (*join_network_cb)();
 
 // init
 int wimod_lorawan_init();
+
+int wimod_lorawan_is_connected();
+
 int wimod_lorawan_reset();
 int wimod_lorawan_factory_reset();
 int wimod_lorawan_device_status();

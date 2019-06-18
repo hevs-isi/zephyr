@@ -45,7 +45,4 @@ int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 // Send HCI Message
 int wimod_hci_send_message(wimod_hci_message_t* tx_message);
 
-// Receiver Process
-void wimod_hci_process();
-
 #endif /* LORA_WIMOD_HCI_DRIVER_H */

@@ -42,7 +42,7 @@ static int shell_cmd_info(const struct shell *shell, size_t argc, char *argv[])
 
 	if (status)
 	{
-		shell_error(shell, "failed");
+		shell_error(shell, "command refused");
 		return 0;
 	}
 
@@ -65,7 +65,7 @@ static int shell_cmd_fw(const struct shell *shell, size_t argc, char *argv[])
 
 	if (status)
 	{
-		shell_error(shell, "failed");
+		shell_error(shell, "command refused");
 		return 0;
 	}
 
@@ -108,7 +108,7 @@ static int shell_nwk_status(const struct shell *shell, size_t argc, char *argv[]
 	int status = wimod_lorawan_get_nwk_status(&nws);
 	if (status)
 	{
-		shell_error(shell, "failed");
+		shell_error(shell, "command refused");
 		return 0;
 	}
 
@@ -136,7 +136,7 @@ static int shell_cmd_deveui(const struct shell *shell, size_t argc, char *argv[]
 	int status = wimod_lorawan_get_device_eui(&eui);
 	if (status)
 	{
-		shell_error(shell, "failed");
+		shell_error(shell, "command refused");
 		return 0;
 	}
 
@@ -303,11 +303,11 @@ static int shell_send_data(const struct shell *shell, uint32_t confirmed)
 
 	if (result)
 	{
-		shell_error(shell, "failed");
+		shell_error(shell, "command refused");
 		return 0;
 	}
 
-	if (txr.status)
+	if (txr.status && txr.ms_delay)
 	{
 		shell_error(shell, "failed, channel blocked for %"PRIu32" ms", txr.ms_delay);
 	}

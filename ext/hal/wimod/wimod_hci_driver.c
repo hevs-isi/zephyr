@@ -230,30 +230,6 @@ int wimod_hci_send_message(wimod_hci_message_t* tx_message)
 
 //------------------------------------------------------------------------------
 //
-//  Process
-//
-//  @brief: read incoming serial data
-//
-//------------------------------------------------------------------------------
-
-void wimod_hci_process()
-{
-	//u8_t   rx_buf[20];
-
-	// read small chunk of data
-	//int rx_length = SerialDevice_ReadData(rx_buf, sizeof(rx_buf));
-
-	// data available ?
-	//if (rx_length > 0)
-	//{
-		// yes, forward to SLIP decoder, decoded SLIP message will be passed to
-		// function "WiMOD_HCI_Processrx_message"
-		//SLIP_DecodeData(rx_buf, rx_length);
-	//}
-}
-
-//------------------------------------------------------------------------------
-//
 //  WiMOD_HCI_Processrx_message
 //
 //  @brief: process received SLIP message and return new rx_buffer
