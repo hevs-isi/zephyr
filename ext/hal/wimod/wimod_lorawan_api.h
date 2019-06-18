@@ -184,7 +184,6 @@ struct lw_dev_info_t
 
 int wimod_lorawan_get_device_info(struct lw_dev_info_t *info);
 
-
 struct lw_firmware_info_t
 {
 	int status;
@@ -193,10 +192,21 @@ struct lw_firmware_info_t
 	uint16_t build;
 	char date_str[11];
 	char info_str[40];
-	uint32_t id;
 };
 
 int wimod_lorawan_get_firmware_version(struct lw_firmware_info_t *info);
+
+struct lw_net_status_t
+{
+	int status;
+	uint8_t state;
+	uint32_t addr;
+	uint8_t dr;
+	uint8_t power;
+	uint8_t max_payload;
+};
+
+int wimod_lorawan_get_nwk_status(struct lw_net_status_t *nws);
 
 int wimod_lorawan_set_op_mode();
 int wimod_lorawan_get_op_mode();
@@ -216,8 +226,6 @@ int wimod_lorawan_send_c_radio_data(u8_t port, const void *data, int length);
 
 // receiver process
 void wimod_lorawan_process();
-
-int wimod_lorawan_get_nwk_status();
 
 int wimod_lorawan_set_rstack_config();
 int wimod_lorawan_get_rstack_config();

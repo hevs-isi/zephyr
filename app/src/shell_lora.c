@@ -80,6 +80,49 @@ static int shell_cmd_fw(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+static const char *nws2str(uint8_t state)
+{
+	switch (state)
+	{
+		case 0x00:
+			return "INACTIVE";
+		case 0x01:
+			return "ative (ABP)";
+		case 0x02:
+			return "ative (OTAA)";
+		case 0x03:
+			return "joining (OTAA)";
+		default:
+			return "impossibru";
+	}
+}
+
+static int shell_nwk_status(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_connected(shell);
+
+	struct lw_net_status_t nws;
+
+	int status = wimod_lorawan_get_nwk_status(&nws);
+	if (status)
+	{
+		shell_error(shell, "failed");
+		return 0;
+	}
+
+	shell_print(shell, "state: 0x%02"PRIu8" (%s)", nws.state, nws2str(nws.state));
+	if (nws.state == 0x01 || nws.state == 0x02)
+	{
+		shell_print(shell, "address: 0x%06"PRIx32, nws.addr);
+		shell_print(shell, "dr: %"PRIu8, nws.dr);
+		shell_print(shell, "power: %"PRIu8, nws.power);
+		shell_print(shell, "max_payload: %"PRIu8, nws.max_payload);
+	}
+
+	return 0;
+}
 
 static int shell_cmd_custom(const struct shell *shell, size_t argc, char *argv[])
 {
@@ -202,17 +245,6 @@ static int shell_cmd_join(const struct shell *shell, size_t argc, char *argv[])
 	shell_connected(shell);
 
 	wimod_lorawan_join_network_request(NULL);
-
-	return 0;
-}
-
-static int shell_nwk_status(const struct shell *shell, size_t argc, char *argv[])
-{
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-	shell_connected(shell);
-
-	wimod_lorawan_get_nwk_status();
 
 	return 0;
 }

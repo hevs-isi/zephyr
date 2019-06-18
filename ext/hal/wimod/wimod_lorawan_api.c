@@ -231,6 +231,30 @@ int wimod_lorawan_get_firmware_version(struct lw_firmware_info_t *info)
 	return info->status;
 }
 
+int wimod_lorawan_get_nwk_status(struct lw_net_status_t *nws)
+{
+	if (!nws)
+	{
+		return -EINVAL;
+	}
+
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
+
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_GET_NWK_STATUS_REQ;
+	tx_msg->length = 0;
+	tx_msg->result = nws;
+
+	int status = wimod_send_message_unlock(tx_msg);
+
+	if (status)
+	{
+		return status;
+	}
+
+	return nws->status;
+}
+
 int wimod_lorawan_set_op_mode()
 {
 	wimod_hci_message_t *tx_msg = tx_buffer_lock();
@@ -359,17 +383,6 @@ int wimod_lorawan_join_network_request(join_network_cb cb)
 	tx_msg->length = 0;
 
 	join_callback = cb;
-
-	return wimod_send_message_unlock(tx_msg);
-}
-
-int wimod_lorawan_get_nwk_status()
-{
-	wimod_hci_message_t *tx_msg = tx_buffer_lock();
-
-	tx_msg->sap_id = LORAWAN_SAP_ID;
-	tx_msg->msg_id = LORAWAN_MSG_GET_NWK_STATUS_REQ;
-	tx_msg->length = 0;
 
 	return wimod_send_message_unlock(tx_msg);
 }
@@ -588,6 +601,46 @@ static void wimod_lorawan_devmgmt_firmware_version_rsp(const wimod_hci_message_t
 	}
 }
 
+static void wimod_lorawan_process_nwk_status_rsp(const wimod_hci_message_t *rx_msg, void *result)
+{
+	struct lw_net_status_t *nws = (struct lw_net_status_t *)result;
+
+	wimod_lorawan_show_response("network status response",
+			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
+
+	if (!result)
+	{
+		LOG_ERR("result is NULL");
+		return ;
+	}
+
+	memset(nws, 0x00, sizeof(*nws));
+	if (!rx_msg->payload[0] == DEVMGMT_STATUS_OK)
+	{
+		nws->status = -EIO;
+		return;
+	}
+
+	nws->state = rx_msg->payload[1];
+
+	if(rx_msg->length > 2)
+	{
+		nws->addr = mk_uint32_t(&rx_msg->payload[2]);
+		nws->dr = rx_msg->payload[6];
+		nws->power = rx_msg->payload[7];
+		nws->max_payload = rx_msg->payload[8];
+	}
+	LOG_DBG("Network Status: 0x%02"PRIu8, nws->state);
+
+	if(rx_msg->length > 2)
+	{
+		LOG_DBG("Device Address: 0x%06"PRIx32, nws->addr);
+		LOG_DBG("Data Rate Index: %"PRIu8, nws->dr);
+		LOG_DBG("Power Level: %"PRIu8, nws->power);
+		LOG_DBG("Max Payload Size: %"PRIu8, nws->max_payload);
+	}
+}
+
 static void wimod_lorawan_get_opmode_rsp(const wimod_hci_message_t *rx_msg)
 {
 	wimod_lorawan_show_response("get opmode response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
@@ -637,25 +690,6 @@ static void wimod_lorawan_device_eui_rsp(const wimod_hci_message_t *rx_msg)
 	eui_lsb = sys_be32_to_cpu(mk_uint32_t(&rx_msg->payload[5]));
 	eui_msb = sys_be32_to_cpu(mk_uint32_t(&rx_msg->payload[1]));
 	LOG_INF("64-Bit Device EUI: 0x%08x%08x", eui_msb, eui_lsb);
-}
-
-static void wimod_lorawan_process_nwk_status_rsp(const wimod_hci_message_t *rx_msg)
-{
-	uint32_t device_address;
-
-	wimod_lorawan_show_response("network status response",
-			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
-
-	LOG_DBG("Network Status: 0x%02X", rx_msg->payload[1]);
-
-	if(rx_msg->length > 2)
-	{
-		device_address = mk_uint32_t(&rx_msg->payload[2]);
-		LOG_DBG("Device Address: 0x%06"PRIx32, device_address);
-		LOG_DBG("Data Rate Index: %d", rx_msg->payload[6]);
-		LOG_DBG("Power Level: %d", rx_msg->payload[7]);
-		LOG_DBG("Max Payload Size: %d", rx_msg->payload[8]);
-	}
 }
 
 static void wimod_lorawan_process_rstack_config_rsp(const wimod_hci_message_t *rx_msg)
@@ -944,7 +978,7 @@ static void wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_
 		break;
 
 		case	LORAWAN_MSG_GET_NWK_STATUS_RSP:
-			wimod_lorawan_process_nwk_status_rsp(rx_msg);
+			wimod_lorawan_process_nwk_status_rsp(rx_msg, result);
 		break;
 
 		case	LORAWAN_MSG_GET_RSTACK_CONFIG_RSP:
