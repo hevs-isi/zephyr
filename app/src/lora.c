@@ -127,13 +127,14 @@ void lora_send_info(void)
 	}
 
 	u8_t data[1+sizeof(vbat)+sizeof(vin)+sizeof(temp)+sizeof(period)];
-	data[0] = 0x03; // version
+	data[0] = 0x04; // version
 	memcpy(&data[1], &vbat, sizeof(vbat));
 	memcpy(&data[5], &temp, sizeof(temp));
 	memcpy(&data[9], &vin, sizeof(vin));
 	memcpy(&data[13], &period, sizeof(period));
 
-	wimod_lorawan_send_u_radio_data(3, data, sizeof(data));
+	struct lw_tx_result_t txr;
+	wimod_lorawan_send_u_radio_data(3, data, sizeof(data), &txr);
 }
 
 void lora_time_AppTimeReq(u8_t AnsRequired)
@@ -158,7 +159,8 @@ void lora_time_AppTimeReq(u8_t AnsRequired)
 	memcpy(&data[1], &time, sizeof(time));
 	data[5] = (AnsRequired ? (1 << 4) : 0) | (global.lora_TokenReq & 0xf);
 
-	wimod_lorawan_send_u_radio_data(202, data, sizeof(data));
+	struct lw_tx_result_t txr;
+	wimod_lorawan_send_u_radio_data(202, data, sizeof(data), &txr);
 }
 
 void lora_time_AppTimeAns(const uint8_t data[5])

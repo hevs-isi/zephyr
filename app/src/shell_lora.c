@@ -281,38 +281,54 @@ static int shell_rstack_cfg(const struct shell *shell, size_t argc, char *argv[]
 	return 0;
 }
 
-static int shell_send_udata(const struct shell *shell, size_t argc, char *argv[])
+static int shell_send_data(const struct shell *shell, uint32_t confirmed)
 {
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-	shell_connected(shell);
-
 	u8_t data[3];
+	struct lw_tx_result_t txr;
+	int result;
+	shell_connected(shell);
 
 	data[0] = 0x11;
 	data[1] = 0x22;
 	data[2] = 0x33;
 
-	wimod_lorawan_send_u_radio_data(1, data, 3);
+	if (confirmed)
+	{
+		result = wimod_lorawan_send_c_radio_data(1, data, 3, &txr);
+	}
+	else
+	{
+		result = wimod_lorawan_send_u_radio_data(1, data, 3, &txr);
+	}
+
+	if (result)
+	{
+		shell_error(shell, "failed");
+		return 0;
+	}
+
+	if (txr.status)
+	{
+		shell_error(shell, "failed, channel blocked for %"PRIu32" ms", txr.ms_delay);
+	}
 
 	return 0;
+}
+
+static int shell_send_udata(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	return shell_send_data(shell, 0);
 }
 
 static int shell_send_cdata(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
-	shell_connected(shell);
 
-	u8_t data[3];
-
-	data[0] = 0x11;
-	data[1] = 0x22;
-	data[2] = 0x33;
-
-	wimod_lorawan_send_c_radio_data(1, data, 3);
-
-	return 0;
+	return shell_send_data(shell, 1);
 }
 
 #include <device.h>

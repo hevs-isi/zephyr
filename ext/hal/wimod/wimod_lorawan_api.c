@@ -286,6 +286,61 @@ int wimod_lorawan_get_device_eui(struct lw_dev_eui_t *eui)
 	return eui->status;
 }
 
+static int wimod_lorawan_send_radio_data(u8_t port, const void* _src_data, int src_length, int confirmed, struct lw_tx_result_t *txr)
+{
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
+	const u8_t* src_data = (const u8_t*)_src_data;
+
+	if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
+	{
+		tx_buffer_unlock();
+		return -1;
+	}
+
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->result = txr;
+	if (confirmed)
+	{
+		tx_msg->msg_id = LORAWAN_MSG_SEND_CDATA_REQ;
+	}
+	else
+	{
+		tx_msg->msg_id = LORAWAN_MSG_SEND_UDATA_REQ;
+	}
+	tx_msg->length = 1 + src_length;
+
+	tx_msg->payload[0] = port;
+
+	memcpy(&tx_msg->payload[1], src_data, src_length);
+
+	return wimod_send_message_unlock(tx_msg);
+}
+
+//------------------------------------------------------------------------------
+//
+//  SendURadioData
+//
+//  @brief: send unconfirmed radio message
+//
+//------------------------------------------------------------------------------
+int wimod_lorawan_send_u_radio_data(u8_t port, const void* _src_data, int src_length, struct lw_tx_result_t *txr)
+{
+	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 0, txr);
+}
+
+//------------------------------------------------------------------------------
+//
+//  SendCRadioData
+//
+//  @brief: send confirmed radio message
+//
+//------------------------------------------------------------------------------
+
+int wimod_lorawan_send_c_radio_data(u8_t port, const void* _src_data, int src_length, struct lw_tx_result_t *txr)
+{
+	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 1, txr);
+}
+
 int wimod_lorawan_set_op_mode()
 {
 	wimod_hci_message_t *tx_msg = tx_buffer_lock();
@@ -352,6 +407,18 @@ int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey)
 	const char *pos;
 	size_t i;
 	char buf[5];
+
+	if (!appKey || !appEui)
+	{
+		LOG_ERR("appKey or appEui is NULL");
+		return -EINVAL;
+	}
+
+	if (strlen(appEui) !=16 || strlen(appKey) !=32)
+	{
+		LOG_ERR("appKey or appEui bad size");
+		return -EINVAL;
+	}
 
 	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
@@ -434,61 +501,6 @@ int wimod_lorawan_set_rstack_config()
 	tx_msg->payload[6] = 15;
 
 	return wimod_send_message_unlock(tx_msg);
-}
-
-static int wimod_lorawan_send_radio_data(u8_t port, const void* _src_data, int src_length, int confirmed)
-{
-	wimod_hci_message_t *tx_msg = tx_buffer_lock();
-
-	const u8_t* src_data = (const u8_t*)_src_data;
-
-	if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
-	{
-		tx_buffer_unlock();
-		return -1;
-	}
-
-	tx_msg->sap_id = LORAWAN_SAP_ID;
-	if (confirmed)
-	{
-		tx_msg->msg_id = LORAWAN_MSG_SEND_UDATA_REQ;
-	}
-	else
-	{
-		tx_msg->msg_id = LORAWAN_MSG_SEND_CDATA_REQ;
-	}
-	tx_msg->length = 1 + src_length;
-
-	tx_msg->payload[0] = port;
-
-	memcpy(&tx_msg->payload[1], src_data, src_length);
-
-	return wimod_send_message_unlock(tx_msg);
-}
-
-//------------------------------------------------------------------------------
-//
-//  SendURadioData
-//
-//  @brief: send unconfirmed radio message
-//
-//------------------------------------------------------------------------------
-int wimod_lorawan_send_u_radio_data(u8_t port, const void* _src_data, int src_length)
-{
-	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 0);
-}
-
-//------------------------------------------------------------------------------
-//
-//  SendCRadioData
-//
-//  @brief: send confirmed radio message
-//
-//------------------------------------------------------------------------------
-
-int wimod_lorawan_send_c_radio_data(u8_t port, const void* _src_data, int src_length)
-{
-	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 1);
 }
 
 //------------------------------------------------------------------------------
@@ -684,6 +696,33 @@ static void wimod_lorawan_device_eui_rsp(const wimod_hci_message_t *rx_msg, void
 	LOG_INF("64-Bit Device EUI: 0x%016"PRIx64, eui->eui);
 }
 
+static void wimod_lorawan_process_send_data_rsp(const wimod_hci_message_t *rx_msg, uint32_t confirmed, void *result)
+{
+	struct lw_tx_result_t *txr = (struct lw_tx_result_t *)result;
+	struct lw_tx_result_t unused;
+	if (!result)
+	{
+		LOG_DBG("result ignored");
+		txr = &unused;
+	}
+
+	wimod_lorawan_show_response(confirmed?"send C-Data response":"send U-Data response",
+			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
+
+	memset(txr, 0x00, sizeof(*txr));
+	if (rx_msg->payload[0])
+	{
+		txr->status = -EIO;
+	}
+
+	if(rx_msg->length > 1){
+
+		txr->ms_delay = mk_uint32_t(&rx_msg->payload[1]);
+
+		LOG_DBG("Channel blocked. Time remaining (ms): %d", txr->ms_delay);
+	}
+}
+
 static void wimod_lorawan_get_opmode_rsp(const wimod_hci_message_t *rx_msg)
 {
 	wimod_lorawan_show_response("get opmode response", wimod_device_mgmt_status_strings, rx_msg->payload[0]);
@@ -742,21 +781,6 @@ static void wimod_lorawan_process_rstack_config_rsp(const wimod_hci_message_t *r
 	// not available in 1.11 specs
 	LOG_DBG("Header MAC Cmd Capacity: %d", rx_msg->payload[7] & 0xFF);
 
-}
-
-static void wimod_lorawan_process_send_data_rsp(const wimod_hci_message_t *rx_msg)
-{
-	u32_t time_remaining_ms;
-
-	wimod_lorawan_show_response("send C-Data response",
-			wimod_device_mgmt_status_strings, rx_msg->payload[0]);
-
-	if(rx_msg->length > 1){
-
-		time_remaining_ms = mk_uint32_t(&rx_msg->payload[1]);
-
-		LOG_DBG("Channel blocked. Time remaining (ms): %d", time_remaining_ms);
-	}
 }
 
 //------------------------------------------------------------------------------
@@ -1001,11 +1025,11 @@ static void wimod_lorawan_process_lorawan_message(const wimod_hci_message_t *rx_
 		break;
 
 		case	LORAWAN_MSG_SEND_UDATA_RSP:
-			wimod_lorawan_show_response("send U-Data response", wimod_lorawan_status_strings, rx_msg->payload[0]);
+			wimod_lorawan_process_send_data_rsp(rx_msg, 0, result);
 		break;
 
 		case	LORAWAN_MSG_SEND_CDATA_RSP:
-			wimod_lorawan_process_send_data_rsp(rx_msg);
+			wimod_lorawan_process_send_data_rsp(rx_msg, 0, result);
 		break;
 
 		case	LORAWAN_MSG_GET_NWK_STATUS_RSP:

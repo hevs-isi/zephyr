@@ -226,10 +226,15 @@ int wimod_lorawan_join_network_request(join_network_cb cb);
 int wimod_lorawan_reactivate(void);
 
 // send unconfirmed radio data
-int wimod_lorawan_send_u_radio_data(u8_t port, const void *data, int length);
+struct lw_tx_result_t
+{
+	int status;
+	uint32_t ms_delay;
+};
+int wimod_lorawan_send_u_radio_data(u8_t port, const void *data, int length, struct lw_tx_result_t *txr);
 
 // send confirmed radio data
-int wimod_lorawan_send_c_radio_data(u8_t port, const void *data, int length);
+int wimod_lorawan_send_c_radio_data(u8_t port, const void *data, int length, struct lw_tx_result_t *txr);
 
 // receiver process
 void wimod_lorawan_process();
