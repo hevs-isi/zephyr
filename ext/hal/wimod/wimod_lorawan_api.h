@@ -176,13 +176,27 @@ int wimod_lorawan_send_ping();
 
 struct lw_dev_info_t
 {
+	int status;
 	uint8_t type;
 	uint32_t addr;
 	uint32_t id;
 };
-int wimod_lorawan_get_device_info();
-// get firmware Version
-int wimod_lorawan_get_firmware_version();
+
+int wimod_lorawan_get_device_info(struct lw_dev_info_t *info);
+
+
+struct lw_firmware_info_t
+{
+	int status;
+	uint8_t maj;
+	uint8_t min;
+	uint16_t build;
+	char date_str[11];
+	char info_str[40];
+	uint32_t id;
+};
+
+int wimod_lorawan_get_firmware_version(struct lw_firmware_info_t *info);
 
 int wimod_lorawan_set_op_mode();
 int wimod_lorawan_get_op_mode();

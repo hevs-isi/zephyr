@@ -31,6 +31,8 @@ typedef struct
 	// Frame Check Sequence Field
 	u8_t   crc16[WIMOD_HCI_MSG_FCS_SIZE];
 
+	void *result;
+
 } wimod_hci_message_t;
 
 // Message receiver callback

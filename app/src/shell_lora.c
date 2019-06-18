@@ -36,7 +36,19 @@ static int shell_cmd_info(const struct shell *shell, size_t argc, char *argv[])
 	ARG_UNUSED(argv);
 	shell_connected(shell);
 
-	wimod_lorawan_get_device_info();
+	struct lw_dev_info_t info;
+
+	int status = wimod_lorawan_get_device_info(&info);
+
+	if (status)
+	{
+		shell_error(shell, "failed");
+		return 0;
+	}
+
+	shell_print(shell, "type:0x%02"PRIx8, info.type);
+	shell_print(shell, "addr:0x%08"PRIx32, info.addr);
+	shell_print(shell, "id:0x%08"PRIx32, info.id);
 
 	return 0;
 }
@@ -47,7 +59,23 @@ static int shell_cmd_fw(const struct shell *shell, size_t argc, char *argv[])
 	ARG_UNUSED(argv);
 	shell_connected(shell);
 
-	wimod_lorawan_get_firmware_version();
+	struct lw_firmware_info_t info;
+
+	int status = wimod_lorawan_get_firmware_version(&info);
+
+	if (status)
+	{
+		shell_error(shell, "failed");
+		return 0;
+	}
+
+	shell_print(shell, "version:%"PRIu8".%"PRIu8, info.maj, info.min);
+	shell_print(shell, "build:%"PRIu16, info.build);
+	shell_print(shell, "date:%s", info.date_str);
+	if (info.info_str[0])
+	{
+		shell_print(shell, "info:%s", info.info_str);
+	}
 
 	return 0;
 }
