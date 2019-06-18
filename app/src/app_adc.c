@@ -286,9 +286,11 @@ uint16_t adc_measure_sensor(uint32_t sensor)
 {
 	switch (sensor)
 	{
-		case 0: return adc_measure_sensor0();
+		case 0:
+			return adc_measure_sensor0();
 		break;
-		case 1: return adc_measure_sensor1();
+		case 1:
+			return adc_measure_sensor1();
 		break;
 		default:
 		return UINT16_MAX;
