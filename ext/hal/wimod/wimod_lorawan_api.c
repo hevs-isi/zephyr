@@ -715,11 +715,11 @@ static void wimod_lorawan_process_send_data_rsp(const wimod_hci_message_t *rx_ms
 		txr->status = -EIO;
 	}
 
-	if(rx_msg->length > 1){
-
+	if(rx_msg->length > 1)
+	{
 		txr->ms_delay = mk_uint32_t(&rx_msg->payload[1]);
 
-		LOG_DBG("Channel blocked. Time remaining (ms): %d", txr->ms_delay);
+		LOG_DBG("Channel blocked. Time remaining (ms): %"PRIu32, txr->ms_delay);
 	}
 }
 
