@@ -104,8 +104,7 @@ static int config_print(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
-SHELL_CREATE_STATIC_SUBCMD_SET(config_sub)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(config_sub,
 	SHELL_CMD_ARG(set_off, NULL, "sleep [ms]", shell_set_off, 0, 0),
 	SHELL_CMD_ARG(set_indus_1, NULL, "sleep [ms]", shell_set_indus_1, 0, 0),
 	SHELL_CMD_ARG(set_indus_2, NULL, "sleep [ms]", shell_set_indus_2, 0, 0),
@@ -114,8 +113,8 @@ SHELL_CREATE_STATIC_SUBCMD_SET(config_sub)
 	SHELL_CMD_ARG(print, NULL, "display current config", config_print, 0, 0),
 
 	SHELL_SUBCMD_SET_END
-};
+);
 
-SHELL_CMD_REGISTER(config, &config_sub, "power commands", NULL);
+SHELL_CMD_REGISTER(config, &config_sub, "configuration commands", NULL);
 
 #endif /* CONFIG_SHELL */

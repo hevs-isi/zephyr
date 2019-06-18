@@ -405,8 +405,7 @@ static int shell_reset(const struct shell *shell, size_t argc, char *argv[])
 	return wimod_lorawan_reset();
 }
 
-SHELL_CREATE_STATIC_SUBCMD_SET(lora_sub)
-{
+SHELL_STATIC_SUBCMD_SET_CREATE(lora_sub,
 	SHELL_CMD_ARG(set, NULL, "set APPEUI APPKEY", shell_cmd_setparam, 2, 2),
 	SHELL_CMD_ARG(join, NULL, "no help", shell_cmd_join, 0, 1),
 	SHELL_CMD_ARG(deveui, NULL, "read deveui", shell_cmd_deveui, 0, 1),
@@ -430,7 +429,7 @@ SHELL_CREATE_STATIC_SUBCMD_SET(lora_sub)
 	SHELL_CMD_ARG(cdata, NULL, "no help", shell_send_cdata, 0, 1),
 	SHELL_CMD_ARG(quit, NULL, "no help", shell_quit, 0, 0),
 	SHELL_SUBCMD_SET_END
-};
+);
 
 SHELL_CMD_REGISTER(lora, &lora_sub, "LoRa commands", NULL);
 
