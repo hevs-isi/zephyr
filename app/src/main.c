@@ -264,6 +264,7 @@ static void all_timers_now(uint32_t now)
 
 static void timers_info(uint32_t now)
 {
+	LOG_DBG("now:%"PRIu32, now);
 	for (size_t i = 0 ; i < ARRAY_SIZE(timers);i++)
 	{
 		if (timers[i]->enable)
@@ -491,6 +492,12 @@ void app_main(void *u1, void *u2, void *u3)
 
 	uint32_t sleep_prevent_duration = 0;
 	uint32_t sleep_seconds = 0;
+
+	if (0) for (;;)
+	{
+		LOG_WRN("device in DO NOTHING mode");
+		k_sleep(5*1000);
+	}
 
 	for (;;)
 	{
