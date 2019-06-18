@@ -368,14 +368,16 @@ static uint32_t tick(uint32_t now)
 	if (expired_restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr))))
 	{
 		LOG_DBG("expired:tx_timer_a");
-		wimod_lorawan_send_u_radio_data(1, &value0, sizeof(value0));
+		struct lw_tx_result_t txr;
+		wimod_lorawan_send_u_radio_data(1, &value0, sizeof(value0), &txr);
 		k_sleep(RADIO_TIMEOUT);
 	}
 
 	if (expired_restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr))))
 	{
 		LOG_DBG("expired:tx_timer_b");
-		wimod_lorawan_send_u_radio_data(2, &value1, sizeof(value1));
+		struct lw_tx_result_t txr;
+		wimod_lorawan_send_u_radio_data(2, &value1, sizeof(value1), &txr);
 		k_sleep(RADIO_TIMEOUT);
 	}
 
