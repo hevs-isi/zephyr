@@ -549,6 +549,7 @@ void app_main(void *u1, void *u2, void *u3)
 
 		if (global.rtc_reset == 1)
 		{
+			global.rtc_reset = 0;
 			init_from_config(&global.config);
 			all_timers_now(app_rtc_get());
 		}
