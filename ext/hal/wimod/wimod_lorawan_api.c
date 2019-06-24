@@ -27,7 +27,7 @@
 #include "misc/byteorder.h"
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(wimod_lorawan_api, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(lw_api, LOG_LEVEL_DBG);
 
 static uint32_t mk_uint16_t(const uint8_t *buffer)
 {

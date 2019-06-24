@@ -38,12 +38,12 @@ typedef struct {
 void slip_init(slip_cb_rx_message_t cb_rx_message);
 
 // Init first receiver buffer
-bool slip_set_rx_buffer(u8_t* rx_buffer, int rx_buf_size);
+bool slip_set_rx_buffer(u8_t *rx_buffer, int rx_buf_size);
 
 // Encode outgoing Data
-int slip_encode_data(u8_t* dst_buffer, int tx_buf_size, u8_t* src_data, int src_length);
+int slip_encode_data(u8_t *dst_buffer, int tx_buf_size, const u8_t *src_data, int src_length);
 
 // Decode incoming Data
-void slip_decode_data(u8_t* src_data, int src_length);
+void slip_decode_data(const u8_t *src_data, int src_length);
 
 #endif /* __LORA_WIMOD_SLIP_H */

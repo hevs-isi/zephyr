@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(wimod_hci_driver, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(lw_hci, LOG_LEVEL_DBG);
 
 static struct device *uart_dev;
 
@@ -37,7 +37,7 @@ static bool CRC16_Check (const u8_t* data, u16_t length, u16_t initVal)
 //------------------------------------------------------------------------------
 
 // SLIP Message Receiver Callback
-static u8_t* wimod_hci_process_rx_message(u8_t* rx_data, int rx_length);
+static u8_t *wimod_hci_process_rx_message(u8_t* rx_data, int rx_length);
 
 //------------------------------------------------------------------------------
 //
@@ -92,7 +92,6 @@ static void uart_isr(struct device *dev)
 			if (!uart_irq_rx_ready(dev)) {
 				continue;
 			}
-
 
 			rx = uart_fifo_read(dev, &byte, 1);
 			if (rx < 0) {
