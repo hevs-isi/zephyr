@@ -177,6 +177,38 @@ static int shell_swd(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+static int shell_psu_indus(const struct shell *shell, size_t argc, char *argv[])
+{
+	shell_connected(shell);
+
+	int enable;
+
+	if (argc <= 1)
+	{
+		return -1;
+	}
+
+	if (argv[1][0] == '0')
+	{
+		enable = 0;
+	}
+	else if (argv[1][0] == '1')
+	{
+		enable = 1;
+	}
+	else
+	{
+		shell_error(shell, "unknown arg:'%s'", argv[1]);
+		return -1;
+	}
+
+	shell_print(shell, "psu_indus %s", enable ? "enable" : "disable");
+
+	psu_ind(enable);
+
+	return 0;
+}
+
 static int shell_quit(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -192,6 +224,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(power_sub,
 	SHELL_CMD_ARG(rtc, NULL, "setup rtc date/time", shell_rtc, 0, 1),
 	SHELL_CMD_ARG(swd, NULL, "[0/1]disable or enable swd pins", shell_swd, 2, 0),
 	SHELL_CMD_ARG(quit, NULL, "re-enable power save mode", shell_quit, 0, 0),
+	SHELL_CMD_ARG(psu_indus, NULL, "[0/1]disable psu_indus", shell_psu_indus, 2, 0),
 
 	SHELL_CMD_ARG(off, NULL, "no help", shell_off, 0, 0),
 	SHELL_CMD_ARG(on, NULL, "no help", shell_on, 0, 0),
