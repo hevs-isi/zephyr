@@ -16,6 +16,9 @@ extern "C"
  */
 void buttons_init(void);
 
+void uart_wakeup_enable(void);
+void uart_wakeup_disable(void);
+
 #ifdef __cplusplus
 }
 #endif

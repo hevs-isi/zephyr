@@ -9,6 +9,7 @@
 #include <gpio.h>
 #include "stm32_lp.h"
 #include "global.h"
+#include "buttons.h"
 
 LOG_MODULE_REGISTER(lp, LOG_LEVEL_INF);
 
@@ -69,7 +70,7 @@ void stm32_sleep(u32_t duration)
 	//RTC->
 	//HAL_PWR_EnterSTOPMode(HAL_PWR_EnterSLEEPMode, PWR_STOPENTRY_WFI);
 	//HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
-
+	uart_wakeup_enable();
 	HAL_SuspendTick();
 	//sys_clock_disable();
 	LL_RTC_DisableWriteProtection(RTC);
@@ -88,6 +89,7 @@ void stm32_sleep(u32_t duration)
 	//HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE2);
 	//HAL_PWREx_DisableLowPowerRunMode();
 	//z_clock_idle_exit();
+	uart_wakeup_disable();
 	HAL_ResumeTick();
 	k_cycle_get_32();
 	//printk("toto\n");
