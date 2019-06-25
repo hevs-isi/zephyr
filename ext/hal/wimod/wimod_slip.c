@@ -86,7 +86,7 @@ static void slip_store_tx_byte(u8_t tx_byte) {
 //
 //------------------------------------------------------------------------------
 
-int slip_encode_data(u8_t* dst_buffer, int dst_buf_size, const u8_t* src_data,
+int slip_encode_data(u8_t *dst_buffer, int dst_buf_size, const u8_t *src_data,
 		int src_length) {
 	// init tx_buffer
 	slip.tx_buffer = dst_buffer;
@@ -140,7 +140,7 @@ int slip_encode_data(u8_t* dst_buffer, int dst_buf_size, const u8_t* src_data,
 //
 //------------------------------------------------------------------------------
 
-bool slip_set_rx_buffer(u8_t* rx_buffer, int rx_buf_size) {
+bool slip_set_rx_buffer(u8_t *rx_buffer, int rx_buf_size) {
 	// receiver in IDLE state and client already registered ?
 	if ((slip.rx_state == SLIPDEC_IDLE_STATE) && slip.cb_rx_message) {
 		// same buffer params
@@ -176,7 +176,7 @@ static void slip_store_rx_byte(u8_t rx_byte) {
 //
 //------------------------------------------------------------------------------
 
-void slip_decode_data(const u8_t* src_data, int src_length) {
+void slip_decode_data(const u8_t *src_data, int src_length) {
 	// iterate over all received bytes
 	while (src_length--) {
 		// get rx_byte

@@ -1,6 +1,6 @@
 
-#ifndef __LORA_WIMOD_SLIP_H
-#define __LORA_WIMOD_SLIP_H
+#ifndef LORA_WIMOD_SLIP_H
+#define LORA_WIMOD_SLIP_H
 
 #include <kernel.h>
 
@@ -17,20 +17,20 @@
 //------------------------------------------------------------------------------
 
 // SLIP message receiver callback
-typedef u8_t* (*slip_cb_rx_message_t)(u8_t* message, int length);
+typedef u8_t *(*slip_cb_rx_message_t)(u8_t *message, int length);
 
 typedef struct {
 	// Decoder
 	int rx_state;
 	int rx_index;
 	int rx_buf_size;
-	u8_t* rx_buffer;
+	u8_t *rx_buffer;
 	slip_cb_rx_message_t cb_rx_message;
 
 	// Encoder
 	int tx_index;
 	int tx_buf_size;
-	u8_t* tx_buffer;
+	u8_t *tx_buffer;
 } slip_t;
 
 
@@ -46,4 +46,4 @@ int slip_encode_data(u8_t *dst_buffer, int tx_buf_size, const u8_t *src_data, in
 // Decode incoming Data
 void slip_decode_data(const u8_t *src_data, int src_length);
 
-#endif /* __LORA_WIMOD_SLIP_H */
+#endif /* LORA_WIMOD_SLIP_H */

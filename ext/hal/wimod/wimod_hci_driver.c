@@ -21,7 +21,7 @@ static struct device *uart_dev;
 #define CRC16_INIT_VALUE	0xFFFF	// initial value for CRC algorithem
 #define CRC16_GOOD_VALUE	0x0F47	// constant compare value for check
 
-static bool CRC16_Check (const u8_t* data, u16_t length, u16_t initVal)
+static bool CRC16_Check (const u8_t *data, u16_t length, u16_t initVal)
 {
 	// calc ones complement of CRC16
 	u16_t crc = ~crc16_ccitt(CRC16_INIT_VALUE, data, length);
@@ -37,7 +37,7 @@ static bool CRC16_Check (const u8_t* data, u16_t length, u16_t initVal)
 //------------------------------------------------------------------------------
 
 // SLIP Message Receiver Callback
-static u8_t *wimod_hci_process_rx_message(u8_t* rx_data, int rx_length);
+static u8_t *wimod_hci_process_rx_message(u8_t *rx_data, int rx_length);
 
 //------------------------------------------------------------------------------
 //
@@ -51,7 +51,7 @@ typedef struct
 	u32_t crc_errors;
 
 	// rx_message
-	wimod_hci_message_t* rx_message;
+	wimod_hci_message_t *rx_message;
 
 	// Receiver callback
 	wimod_hci_cb_rx_message  cb_rx_message;
@@ -144,7 +144,6 @@ int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 	}
 
 	uart_irq_rx_disable(uart_dev);
-	//uart_irq_tx_disable(uart_dev);
 
 	/* Drain the fifo */
 	while (uart_irq_rx_ready(uart_dev)) {
@@ -166,7 +165,7 @@ int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 //
 //------------------------------------------------------------------------------
 
-int wimod_hci_send_message(wimod_hci_message_t* tx_message)
+int wimod_hci_send_message(wimod_hci_message_t *tx_message)
 {
 	LOG_DBG("here");
 
@@ -235,7 +234,7 @@ int wimod_hci_send_message(wimod_hci_message_t* tx_message)
 //
 //------------------------------------------------------------------------------
 
-static u8_t* wimod_hci_process_rx_message(u8_t* rx_data, int rx_length)
+static u8_t *wimod_hci_process_rx_message(u8_t *rx_data, int rx_length)
 {
 	LOG_DBG("wimod_hci_process_rx_message");
 	// check min length

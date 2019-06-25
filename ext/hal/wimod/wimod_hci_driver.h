@@ -36,13 +36,13 @@ typedef struct
 } wimod_hci_message_t;
 
 // Message receiver callback
-typedef wimod_hci_message_t* (*wimod_hci_cb_rx_message)(wimod_hci_message_t *rx_msg);
+typedef wimod_hci_message_t *(*wimod_hci_cb_rx_message)(wimod_hci_message_t *rx_msg);
 
 // Init HCI Layer
 int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
-					wimod_hci_message_t*	rx_message);
+					wimod_hci_message_t *rx_message);
 
 // Send HCI Message
-int wimod_hci_send_message(wimod_hci_message_t* tx_message);
+int wimod_hci_send_message(wimod_hci_message_t *tx_message);
 
 #endif /* LORA_WIMOD_HCI_DRIVER_H */

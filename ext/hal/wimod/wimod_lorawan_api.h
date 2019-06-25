@@ -152,7 +152,7 @@
 typedef struct
 {
 	int		id;
-	const char* string;
+	const char *string;
 } id_string_t;
 
 typedef void (*join_network_cb)();
@@ -248,4 +248,4 @@ int wimod_lorawan_get_rtc_alarm();
 
 int wimod_data_rx_handler(uint32_t port, const uint8_t *data, size_t size);
 
-#endif // WIMOD_LORAWAN_API_H
+#endif /* WIMOD_LORAWAN_API_H */

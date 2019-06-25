@@ -118,7 +118,7 @@ static void tx_buffer_unlock()
 	k_mutex_unlock(&wimod_mutex);
 }
 
-static int wimod_send_message_unlock(wimod_hci_message_t* tx_msg)
+static int wimod_send_message_unlock(wimod_hci_message_t *tx_msg)
 {
 	int status;
 
@@ -278,10 +278,10 @@ int wimod_lorawan_get_device_eui(struct lw_dev_eui_t *eui)
 	return eui->status;
 }
 
-static int wimod_lorawan_send_radio_data(u8_t port, const void* _src_data, int src_length, int confirmed, struct lw_tx_result_t *txr)
+static int wimod_lorawan_send_radio_data(u8_t port, const void *_src_data, int src_length, int confirmed, struct lw_tx_result_t *txr)
 {
 	wimod_hci_message_t *tx_msg = tx_buffer_lock();
-	const u8_t* src_data = (const u8_t*)_src_data;
+	const u8_t *src_data = (const u8_t*)_src_data;
 
 	if (src_length > (WIMOD_HCI_MSG_PAYLOAD_SIZE - 1))
 	{
@@ -308,12 +308,12 @@ static int wimod_lorawan_send_radio_data(u8_t port, const void* _src_data, int s
 	return wimod_send_message_unlock(tx_msg);
 }
 
-int wimod_lorawan_send_u_radio_data(u8_t port, const void* _src_data, int src_length, struct lw_tx_result_t *txr)
+int wimod_lorawan_send_u_radio_data(u8_t port, const void *_src_data, int src_length, struct lw_tx_result_t *txr)
 {
 	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 0, txr);
 }
 
-int wimod_lorawan_send_c_radio_data(u8_t port, const void* _src_data, int src_length, struct lw_tx_result_t *txr)
+int wimod_lorawan_send_c_radio_data(u8_t port, const void *_src_data, int src_length, struct lw_tx_result_t *txr)
 {
 	return wimod_lorawan_send_radio_data(port, _src_data, src_length, 1, txr);
 }
@@ -472,7 +472,7 @@ int wimod_lorawan_set_rstack_config()
 	return wimod_send_message_unlock(tx_msg);
 }
 
-static void decode_response(const char* str, const id_string_t* status_table, u8_t status_id)
+static void decode_response(const char *str, const id_string_t *status_table, u8_t status_id)
 {
 	while(status_table->string)
 	{
@@ -486,11 +486,11 @@ static void decode_response(const char* str, const id_string_t* status_table, u8
 	}
 }
 
-static void decode_response_tx(const char* str, const id_string_t* status_table, u8_t status_id)
+static void decode_response_tx(const char *str, const id_string_t *status_table, u8_t status_id)
 {
 	/* status for IND_TX messages are OK when status is 0x01.
-	* So display status 0x01, and string for 0x00.
-	*/
+	 * So display status 0x01, and string for 0x00.
+	 */
 	uint32_t status_id2 = (status_id == 0x01 ? DEVMGMT_STATUS_OK : status_id);
 
 	while(status_table->string)
@@ -806,7 +806,7 @@ static void process_u_data_rx_indication(const wimod_hci_message_t *rx_msg)
 	// rx channel info attached ?
 	if (rx_msg->payload[0] & 0x01)
 	{
-		const u8_t* rxInfo = &rx_msg->payload[1 + payload_size];
+		const u8_t *rxInfo = &rx_msg->payload[1 + payload_size];
 		LOG_DBG("ChnIdx:%d, DR:%d, RSSI:%d, SNR:%d, RxSlot:%d",
 			(int)rxInfo[0], (int)rxInfo[1], (int)rxInfo[2],
 			(int)rxInfo[3], (int)rxInfo[4]);
@@ -844,7 +844,7 @@ static void process_c_data_rx_indication(const wimod_hci_message_t *rx_msg)
 	// rx channel info attached ?
 	if (rx_msg->payload[0] & 0x01)
 	{
-		const u8_t* rxInfo = &rx_msg->payload[1 + payload_size];
+		const u8_t *rxInfo = &rx_msg->payload[1 + payload_size];
 		LOG_DBG("ChnIdx:%d, DR:%d, RSSI:%d, SNR:%d, RxSlot:%d",
 			(int)rxInfo[0], (int)rxInfo[1], (int)rxInfo[2],
 			(int)rxInfo[3], (int)rxInfo[4]);
@@ -979,22 +979,22 @@ static void process_rx_lorawan(const wimod_hci_message_t *rx_msg, void *result)
 	}
 }
 
-static wimod_hci_message_t* process_rx(wimod_hci_message_t *rx_msg)
+static wimod_hci_message_t *process_rx(wimod_hci_message_t *rx_msg)
 {
 	void *result = NULL;
 
 	if (k_timer_remaining_get(&wimod_timer))
 	{
 		/*
-		 * IFF the timer is running, the wimod_send_message_unlock is still
-		 * waiting, and the user data is still valid (on the stack.)
+		  *IFF the timer is running, the wimod_send_message_unlock is still
+		  *waiting, and the user data is still valid (on the stack.)
 		 */
 		const wimod_hci_message_t *tx_msg = (wimod_hci_message_t *)k_timer_user_data_get(&wimod_timer);
 
 		/*
-		 * Stop the timer only if this is a the _RSP according to the last _REQ.
-		 * According to the spec, the _RSP is always _REQ+1.
-		 * The _RSP should have the same SAP_ID.
+		  *Stop the timer only if this is a the _RSP according to the last _REQ.
+		  *According to the spec, the _RSP is always _REQ+1.
+		  *The _RSP should have the same SAP_ID.
 		 */
 		LOG_DBG("tx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
 		LOG_DBG("rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
