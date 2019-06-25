@@ -171,7 +171,7 @@ int wimod_hci_send_message(wimod_hci_message_t* tx_message)
 	LOG_DBG("here");
 
 	u8_t buf[1] = { SLIP_END };
-	u8_t i;
+	int i;
 
 	// 1. check parameter
 	//
