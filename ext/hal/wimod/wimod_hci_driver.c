@@ -77,6 +77,7 @@ static u8_t tx_buffer[sizeof( wimod_hci_message_t ) * 2 + 2];
 //  @brief: Init HCI Message layer
 //
 //------------------------------------------------------------------------------
+static struct slip_t slip_buffer;
 
 static void uart_isr(struct device *dev)
 {
@@ -97,7 +98,7 @@ static void uart_isr(struct device *dev)
 			if (rx < 0) {
 				return;
 			}
-			slip_decode_data(&byte, 1);
+			slip_decode_data(&slip_buffer, &byte, 1);
 			i++;
 	}
 
@@ -131,10 +132,10 @@ int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 
 
 	// init SLIP
-	slip_init(wimod_hci_process_rx_message);
+	slip_init(&slip_buffer, wimod_hci_process_rx_message);
 
 	// init first RxBuffer to SAP_ID of HCI message, size without 16-Bit length Field
-	slip_set_rx_buffer(&rx_message->sap_id, sizeof(wimod_hci_message_t) - sizeof(u16_t));
+	slip_set_rx_buffer(&slip_buffer, &rx_message->sap_id, sizeof(wimod_hci_message_t) - sizeof(u16_t));
 
 	//uart_pipe_register(rxsplipbuf, sizeof(rxsplipbuf), upipe_rx);
 	uart_dev = device_get_binding(CONFIG_LORA_IM881A_UART_DRV_NAME);

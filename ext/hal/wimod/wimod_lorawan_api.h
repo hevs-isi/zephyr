@@ -166,7 +166,27 @@ typedef void (*join_network_cb)();
 // init
 int wimod_lorawan_init();
 
-int wimod_lorawan_is_connected();
+/**
+ * \brief Wait for activation
+ *
+ * \param timeout : timeout in ms or K_NO_WAIT, or K_WAIT_FOREVER
+ *
+ * \return 0 device activated
+ */
+int wimod_lorawan_wait_activated(s32_t timeout);
+
+/**
+ * \brief Wait for lorawan idle
+ *
+ * \param timeout : timeout in ms or K_NO_WAIT, or K_WAIT_FOREVER
+ *
+ * \return 0 device ready
+ *
+ * Device ready means it is activated and not doing something,
+ * wimod_lorawan_send_u_radio_data or wimod_lorawan_send_c_radio_data may still
+ * be blocked because of the duty cycle.
+ */
+int wimod_lorawan_wait_idle(s32_t timeout);
 
 int wimod_lorawan_reset();
 int wimod_lorawan_factory_reset();
