@@ -81,39 +81,22 @@ static struct slip_t slip_buffer;
 
 static void uart_isr(struct device *dev)
 {
-	//uart_irq_update(dev);
-	static int i;
+	while (uart_irq_update(dev) && uart_irq_is_pending(dev))
+	{
+		u8_t byte;
+		int rx;
 
-	while (uart_irq_update(dev) &&
-			uart_irq_is_pending(dev)) {
-
-			u8_t byte;
-			int rx;
-
-			if (!uart_irq_rx_ready(dev)) {
-				continue;
-			}
-
-			rx = uart_fifo_read(dev, &byte, 1);
-			if (rx < 0) {
-				return;
-			}
-			slip_decode_data(&slip_buffer, &byte, 1);
-			i++;
-	}
-
-	//got = 1;
-
-/*
-	if (uart_irq_is_pending(dev)) {
-		if (uart_irq_rx_ready(dev)) {
-			got = uart_fifo_read(uart_dev, rx_buffer, 1);
-			if (got <= 0) {
-				return;
-			}
+		if (!uart_irq_rx_ready(dev)) {
+			continue;
 		}
+
+		rx = uart_fifo_read(dev, &byte, 1);
+		if (rx < 0)
+		{
+			return;
+		}
+		slip_decode_data(&slip_buffer, &byte, 1);
 	}
-*/
 }
 
 int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
