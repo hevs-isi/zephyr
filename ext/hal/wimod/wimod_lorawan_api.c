@@ -92,7 +92,7 @@ static wimod_hci_message_t rx_buffer;
 // network join callback function
 static join_network_cb join_callback;
 
-static K_MUTEX_DEFINE(wimod_mutex);
+static K_MUTEX_DEFINE(lw_mutex);
 
 static void wimod_timer_stop_handler(struct k_timer *timer_id)
 {
@@ -108,14 +108,14 @@ static K_TIMER_DEFINE(wimod_timer, wimod_timer_expired_handler, wimod_timer_stop
 
 static wimod_hci_message_t *tx_buffer_lock(void)
 {
-	k_mutex_lock(&wimod_mutex, K_FOREVER);
+	k_mutex_lock(&lw_mutex, K_FOREVER);
 
 	return &tx_buffer;
 }
 
 static void tx_buffer_unlock()
 {
-	k_mutex_unlock(&wimod_mutex);
+	k_mutex_unlock(&lw_mutex);
 }
 
 static int wimod_send_message_unlock(wimod_hci_message_t *tx_msg)
@@ -1026,11 +1026,11 @@ int wimod_lorawan_init()
 {
 	int status;
 
-	k_mutex_lock(&wimod_mutex, K_FOREVER);
+	k_mutex_lock(&lw_mutex, K_FOREVER);
 
 	status = wimod_hci_init(process_rx, &rx_buffer);
 
-	k_mutex_unlock(&wimod_mutex);
+	k_mutex_unlock(&lw_mutex);
 
 	return status;
 }
