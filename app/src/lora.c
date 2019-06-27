@@ -17,11 +17,6 @@ LOG_MODULE_REGISTER(lora, LOG_LEVEL_DBG);
 
 #include <gpio.h>
 
-static struct device *uart;
-static struct uart_device_config *uart_cfg;
-
-#include <uart.h>
-
 void join_callback()
 {
 	LOG_INF("LoRaWAN Network started.\n");
@@ -30,11 +25,10 @@ void join_callback()
 int lora_init()
 {
 	int status;
-	uart = device_get_binding(CONFIG_LORA_IM881A_UART_DRV_NAME);
-	uart_cfg = (struct uart_device_config *)(uart->config->config_info);
 
-	/* BUG: couldn't launch the debug when the function 'uart_irq_rx_enable' is called too quickly */
-	k_busy_wait(1000000);
+	lora_on();
+	LOG_WRN("lora_on");
+	k_sleep(K_MSEC(200));
 
 	status = wimod_lorawan_init();
 	if (status)
@@ -43,13 +37,23 @@ int lora_init()
 		return -EIO;
 	}
 
-	status = wimod_lorawan_reset();
+	for (int i = 0; i < 5; i++)
+	{
+		status = wimod_lorawan_reset();
+		if (status == 0)
+		{
+			LOG_DBG("wimod_lorawan_reset success at try #%d", i+1);
+			break;
+		}
+	}
+
 	if (status)
 	{
-		LOG_ERR("wimod_lorawan_reset, turn it OFF then ON");
+		LOG_ERR("wimod_lorawan_reset failed, turn it OFF then ON");
 		lora_off();
 		k_sleep(K_SECONDS(1));
 		lora_on();
+		k_sleep(K_MSEC(200));
 		status = wimod_lorawan_send_ping();
 		if (status)
 		{
@@ -101,11 +105,19 @@ void lora_on()
 	stm32_setup_pins(pinconf_lora_uart_on, ARRAY_SIZE(pinconf_lora_uart_on));
 }
 
+static uint8_t *fillbuff(uint8_t *dst, const void *src, size_t size)
+{
+	memcpy(dst, src, size);
+	return dst+size;
+}
+
 void lora_send_info(void)
 {
 	uint32_t vbat = adc_measure_vbat();
 	uint32_t vin = adc_measure_charger();
 	int32_t temp = adc_measure_temp();
+	uint32_t boot_count = global.config.boot_count;
+
 	uint32_t period[2] =
 	{
 		global.config.sensor_config[0].period,
@@ -121,17 +133,20 @@ void lora_send_info(void)
 	vbat = sys_cpu_to_le32(vbat);
 	vin = sys_cpu_to_le32(vin);
 	temp = sys_cpu_to_le32(temp);
+	boot_count = sys_cpu_to_le32(boot_count);
 	for (int i = 0 ; i < ARRAY_SIZE(period); i++)
 	{
 		period[i] = sys_cpu_to_le32(period[i]);
 	}
 
-	u8_t data[1+sizeof(vbat)+sizeof(vin)+sizeof(temp)+sizeof(period)];
-	data[0] = 0x04; // version
-	memcpy(&data[1], &vbat, sizeof(vbat));
-	memcpy(&data[5], &temp, sizeof(temp));
-	memcpy(&data[9], &vin, sizeof(vin));
-	memcpy(&data[13], &period, sizeof(period));
+	u8_t data[1+sizeof(vbat)+sizeof(vin)+sizeof(temp)+sizeof(period)+sizeof(boot_count)];
+	uint8_t *ptr = &data[0];
+	ptr = fillbuff(ptr, &(uint8_t){0x04}, 1);
+	ptr = fillbuff(ptr, &vbat, sizeof(vbat));
+	ptr = fillbuff(ptr, &temp, sizeof(temp));
+	ptr = fillbuff(ptr, &vin, sizeof(vin));
+	ptr = fillbuff(ptr, &period[0], sizeof(period));
+	ptr = fillbuff(ptr, &boot_count, sizeof(boot_count));
 
 	struct lw_tx_result_t txr;
 	wimod_lorawan_send_u_radio_data(3, data, sizeof(data), &txr);

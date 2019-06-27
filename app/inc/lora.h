@@ -12,6 +12,8 @@ extern "C"
  * \brief Initialize the radio module
  *
  * \return 0 on success
+ *
+ * There is no need to call lora_on() before lora_init().
  */
 int lora_init(void);
 

@@ -141,24 +141,60 @@ static int wimod_send_message_unlock(wimod_hci_message_t *tx_msg)
 	return timer_status == 0 ? 0 : -1;
 }
 
-int wimod_lorawan_reset()
+static int _wimod_lorawan_reset()
 {
-	int status;
 	wimod_hci_message_t *tx_msg = tx_buffer_lock();
 
 	tx_msg->sap_id = DEVMGMT_SAP_ID;
 	tx_msg->msg_id = DEVMGMT_MSG_RESET_REQ;
 	tx_msg->length = 0;
 
-	status = wimod_send_message_unlock(tx_msg);
+	return wimod_send_message_unlock(tx_msg);
+}
+
+int wimod_lorawan_reset()
+{
+	const size_t repeat_nr = 5;
+	size_t i;
+
+	int status;
+
+	for (i = 0 ; i < repeat_nr; i++)
+	{
+		status = _wimod_lorawan_reset();
+		if (status == 0)
+		{
+			LOG_DBG("DEVMGMT_MSG_RESET success at try #%d", i+1);
+			break;
+		}
+		k_sleep(200);
+	}
+
 	if (status)
 	{
+		LOG_ERR("DEVMGMT_MSG_RESET failed %d times", repeat_nr);
 		return status;
 	}
 
 	k_sleep(100);
+	for (i = 0 ; i < repeat_nr; i++)
+	{
+		status = wimod_lorawan_send_ping();
+		if (status == 0)
+		{
+			LOG_DBG("DEVMGMT_MSG_PING success at try #%d", i+1);
+			break;
+		}
+		k_sleep(200);
+	}
 
-	return wimod_lorawan_send_ping();
+	if (status)
+	{
+		LOG_ERR("DEVMGMT_MSG_PING failed %d times", repeat_nr);
+		return status;
+	}
+
+	return 0;
 }
 
 int wimod_lorawan_factory_reset()

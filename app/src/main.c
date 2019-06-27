@@ -267,13 +267,18 @@ static void timers_info(uint32_t now)
 	LOG_DBG("now:%"PRIu32, now);
 	for (size_t i = 0 ; i < ARRAY_SIZE(timers);i++)
 	{
-		if (timers[i]->enable)
+		const struct periodic_timer_t *t = timers[i];
+		if (!t->enable)
 		{
-			LOG_DBG("%s:period:%"PRIu32", expiry:%"PRIu32, timers[i]->name, timers[i]->period, expiry(timers[i], now));
+			LOG_DBG("%s:disable", t->name);
+		}
+		else if (t->configured)
+		{
+			LOG_DBG("%s:period:%"PRIu32", expiry:%"PRIu32, t->name, t->period, expiry(t, now));
 		}
 		else
 		{
-			LOG_DBG("%s:disable", timers[i]->name);
+			LOG_DBG("%s:period:%"PRIu32", expiry:(not configued)", t->name, t->period);
 		}
 	}
 }
@@ -462,6 +467,8 @@ void app_main(void *u1, void *u2, void *u3)
 	ARG_UNUSED(u3);
 
 	lp_init();
+	gps_off();
+	lora_off();
 	lp_sleep_prevent();
 	leds_init();
 
@@ -481,11 +488,9 @@ void app_main(void *u1, void *u2, void *u3)
 	app_rtc_init();
 	init_from_config(&global.config);
 	all_timers_now(app_rtc_get());
-	gps_off();
 
 	//gps_init();
 
-	lora_on();
 	lora_init();
 	adc_init();
 	buttons_init();

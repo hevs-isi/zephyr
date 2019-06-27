@@ -113,7 +113,6 @@ int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 	// save rx_message
 	HCI.rx_message = rx_message;
 
-
 	// init SLIP
 	slip_init(&slip_buffer, wimod_hci_process_rx_message);
 
