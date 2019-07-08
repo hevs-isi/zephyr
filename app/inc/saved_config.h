@@ -69,6 +69,8 @@ enum saved_config_predef_e
 	SC_DEFAULT_INDUS_2	= 0x02,
 	SC_DEFAULT_INDUS_1_FAST	= 0x03,
 	SC_DEFAULT_INDUS_2_FAST	= 0x04,
+	SC_DEFAULT_INDUS_1_MID	= 0x05,
+	SC_DEFAULT_INDUS_2_MID	= 0x06,
 };
 
 void saved_config_predef(struct saved_config_t *config, enum saved_config_predef_e pre);

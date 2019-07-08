@@ -382,5 +382,18 @@ void saved_config_predef(struct saved_config_t *config, enum saved_config_predef
 			config->sensor_config[1] = default_indus_flow;
 			config->sensor_config[1].period = 30;
 		break;
+
+		case SC_DEFAULT_INDUS_1_MID:
+			config->sensor_config[0] = default_indus_pressure;
+			config->sensor_config[0].period = 150;
+			config->sensor_config[1] = default_off;
+		break;
+
+		case SC_DEFAULT_INDUS_2_MID:
+			config->sensor_config[0] = default_indus_pressure;
+			config->sensor_config[0].period = 150;
+			config->sensor_config[1] = default_indus_flow;
+			config->sensor_config[1].period = 150;
+		break;
 	}
 }

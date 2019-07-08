@@ -57,6 +57,32 @@ static int shell_set_indus_2(const struct shell *shell, size_t argc, char *argv[
 	return 0;
 }
 
+static int shell_set_indus_1_mid(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	shell_connected(shell);
+
+	saved_config_predef(&global.config, SC_DEFAULT_INDUS_1_MID);
+	global.config_changed = 1;
+
+	return 0;
+}
+
+static int shell_set_indus_2_mid(const struct shell *shell, size_t argc, char *argv[])
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	shell_connected(shell);
+
+	saved_config_predef(&global.config, SC_DEFAULT_INDUS_2_MID);
+	global.config_changed = 1;
+
+	return 0;
+}
+
 static int shell_set_indus_1_fast(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -108,6 +134,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(config_sub,
 	SHELL_CMD_ARG(set_off, NULL, "sleep [ms]", shell_set_off, 0, 0),
 	SHELL_CMD_ARG(set_indus_1, NULL, "sleep [ms]", shell_set_indus_1, 0, 0),
 	SHELL_CMD_ARG(set_indus_2, NULL, "sleep [ms]", shell_set_indus_2, 0, 0),
+	SHELL_CMD_ARG(set_indus_1_mid, NULL, "sleep [ms]", shell_set_indus_1_mid, 0, 0),
+	SHELL_CMD_ARG(set_indus_2_mid, NULL, "sleep [ms]", shell_set_indus_2_mid, 0, 0),
 	SHELL_CMD_ARG(set_indus_1_fast, NULL, "sleep [ms]", shell_set_indus_1_fast, 0, 0),
 	SHELL_CMD_ARG(set_indus_2_fast, NULL, "sleep [ms]", shell_set_indus_2_fast, 0, 0),
 	SHELL_CMD_ARG(print, NULL, "display current config", config_print, 0, 0),
