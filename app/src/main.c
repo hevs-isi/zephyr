@@ -291,6 +291,22 @@ static uint32_t prng(uint32_t next, const uint8_t *devaddr, size_t size)
 	return crc32_ieee(data, sizeof(data));
 }
 
+static int measure_immediate(const struct sensor_config_t *c, uint32_t *value, uint32_t nr)
+{
+	switch((enum mode_e)c->mode)
+	{
+		case MODE_0_10V:
+			*value = adc_measure_sensor(nr)*100/18;
+			LOG_DBG("measure ch%"PRIu32" : %"PRIu32" mV", nr, *value);
+			return 0;
+		break;
+
+		default:
+		LOG_ERR("not yet implemented : sensor_config->mode : %"PRIu8, c->mode);
+		return -ENOTSUP;
+	}
+}
+
 static int measure(const struct sensor_config_t *c, uint32_t *value, uint32_t nr)
 {
 	int ret = 0;
@@ -318,20 +334,8 @@ static int measure(const struct sensor_config_t *c, uint32_t *value, uint32_t nr
 	LOG_DBG("wait %"PRIu32" ms", c->wakeup_ms);
 	k_sleep(c->wakeup_ms);
 
-	switch((enum mode_e)c->mode)
-	{
-		case MODE_0_10V:
-			*value = adc_measure_sensor(nr)*100/18;
-			LOG_DBG("measure ch%"PRIu32" : %"PRIu32" mV", nr, *value);
-		break;
+	ret = measure_immediate(c, value, nr);
 
-		default:
-		LOG_ERR("not yet implemented : sensor_config->mode : %"PRIu8, c->mode);
-		ret = -ENOTSUP;
-		goto end_mes;
-	}
-
-end_mes:
 	switch((enum psu_e)c->psu)
 	{
 		case PSU_5V:
@@ -359,32 +363,36 @@ static uint32_t tick(uint32_t now)
 	uint32_t value0;
 	uint32_t value1;
 
-	if (expired_restart(&measure_timer_a, now))
+	if (!global.debug_measure)
 	{
-		LOG_DBG("expired:measure_timer_a");
-		ret = measure(&global.config.sensor_config[0], &value0, 0);
-	}
 
-	if (expired_restart(&measure_timer_b, now))
-	{
-		LOG_DBG("expired:measure_timer_b");
-		ret = measure(&global.config.sensor_config[1], &value1, 1);
-	}
+		if (expired_restart(&measure_timer_a, now))
+		{
+			LOG_DBG("expired:measure_timer_a");
+			ret = measure(&global.config.sensor_config[0], &value0, 0);
+		}
 
-	if (expired_restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr))))
-	{
-		LOG_DBG("expired:tx_timer_a");
-		struct lw_tx_result_t txr;
-		wimod_lorawan_send_u_radio_data(1, &value0, sizeof(value0), &txr);
-		k_sleep(RADIO_TIMEOUT);
-	}
+		if (expired_restart(&measure_timer_b, now))
+		{
+			LOG_DBG("expired:measure_timer_b");
+			ret = measure(&global.config.sensor_config[1], &value1, 1);
+		}
 
-	if (expired_restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr))))
-	{
-		LOG_DBG("expired:tx_timer_b");
-		struct lw_tx_result_t txr;
-		wimod_lorawan_send_u_radio_data(2, &value1, sizeof(value1), &txr);
-		k_sleep(RADIO_TIMEOUT);
+		if (expired_restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr))))
+		{
+			LOG_DBG("expired:tx_timer_a");
+			struct lw_tx_result_t txr;
+			wimod_lorawan_send_u_radio_data(1, &value0, sizeof(value0), &txr);
+			k_sleep(RADIO_TIMEOUT);
+		}
+
+		if (expired_restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr))))
+		{
+			LOG_DBG("expired:tx_timer_b");
+			struct lw_tx_result_t txr;
+			wimod_lorawan_send_u_radio_data(2, &value1, sizeof(value1), &txr);
+			k_sleep(RADIO_TIMEOUT);
+		}
 	}
 
 	if (expired_restart_psnr(&sync_timer, now, prng(sync_timer.next, devaddr, sizeof(devaddr))))
@@ -510,15 +518,13 @@ void app_main(void *u1, void *u2, void *u3)
 
 		if (!sleep_prevent_duration)
 		{
+			// We just wakeup from sleep, say hello
 			LOG_INF("now:%"PRIu32, now);
 		}
 
-		if (global.tx_now == 1)
-		{
-			LOG_INF("tx now!");
-			global.tx_now = 0;
-			all_timers_now(app_rtc_get());
-		}
+		/*
+		 * Manage configuration/time changes
+		 */
 
 		if (global.sleep_prevent == 1)
 		{
@@ -534,15 +540,18 @@ void app_main(void *u1, void *u2, void *u3)
 			sleep_prevent_duration = 0;
 		}
 
-		k_thread_resume(led1_thread_id);
-		sleep_seconds = tick(now);
-		k_thread_suspend(led1_thread_id);
-		led1_set(0);
+		if (global.tx_now == 1)
+		{
+			LOG_INF("tx now!");
+			global.tx_now = 0;
+			all_timers_now(app_rtc_get());
+		}
 
 		if (global.config_changed == 1)
 		{
 			LOG_INF("config_changed");
 			global.config_changed = 0;
+			global.debug_measure = 0;
 			saved_config_save(&global.config);
 			init_from_config(&global.config);
 			lora_send_info();
@@ -561,6 +570,35 @@ void app_main(void *u1, void *u2, void *u3)
 			all_timers_now(app_rtc_get());
 		}
 
+		if (global.debug_measure)
+		{
+			/**
+			 * The shell has requested measuring to shell
+			 */
+			uint32_t value[2];
+
+			sleep_prevent_duration = 4;
+
+			for (size_t i = 0; i < 2 ; i++)
+			{
+
+				int ret;
+				ret = measure_immediate(&global.config.sensor_config[i], &value[i], i);
+				if (ret)
+				{
+					LOG_ERR("measure failed on %zu", i);
+				}
+			}
+
+			LOG_INF("measure in0: %"PRIu32" mv in1: %"PRIu32, value[0], value[1]);
+			k_sleep(K_SECONDS(1));
+		}
+
+		k_thread_resume(led1_thread_id);
+		sleep_seconds = tick(now);
+		k_thread_suspend(led1_thread_id);
+		led1_set(0);
+
 		if (sleep_prevent_duration > 0)
 		{
 			if (sleep_prevent_duration % 5 == 0)
@@ -573,7 +611,7 @@ void app_main(void *u1, void *u2, void *u3)
 			{
 				LOG_DBG("sleep : %"PRIu32" seconds", sleep_seconds);
 			}
-			k_sleep(1000);
+			k_sleep(K_SECONDS(1));
 			sleep_prevent_duration--;
 		}
 		else

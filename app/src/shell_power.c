@@ -4,6 +4,7 @@
 #include <device.h>
 #include "stm32_lp.h"
 #include "app_rtc.h"
+#include "global.h"
 #include <time.h>
 
 #if CONFIG_SHELL
@@ -209,6 +210,35 @@ static int shell_psu_indus(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+static int shell_measure(const struct shell *shell, size_t argc, char *argv[])
+{
+	shell_connected(shell);
+
+	if (argc <= 1)
+	{
+		shell_error(shell, "missing arg");
+		return -1;
+	}
+
+	if (argv[1][0] == '0')
+	{
+		global.debug_measure = 0;
+	}
+	else if (argv[1][0] == '1')
+	{
+		global.debug_measure = 1;
+	}
+	else
+	{
+		shell_error(shell, "unknown arg:'%s'", argv[1]);
+		return -1;
+	}
+
+	shell_print(shell, "global.debug_measure %s", global.debug_measure ? "enable" : "disable");
+
+	return 0;
+}
+
 static int shell_quit(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -238,6 +268,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(power_sub,
 	SHELL_CMD_ARG(quit, NULL, "re-enable power save mode", shell_quit, 0, 0),
 	SHELL_CMD_ARG(psu_indus, NULL, "[0/1]disable psu_indus", shell_psu_indus, 2, 0),
 	SHELL_CMD_ARG(reset, NULL, "[0/1]disable psu_indus", shell_reset, 0, 0),
+	SHELL_CMD_ARG(measure, NULL, "[0/1] disable radio measure, print measure to shell at 1Hz", shell_measure, 2, 0),
 
 	SHELL_CMD_ARG(off, NULL, "no help", shell_off, 0, 0),
 	SHELL_CMD_ARG(on, NULL, "no help", shell_on, 0, 0),

@@ -75,6 +75,11 @@ struct global_t
 	volatile uint32_t lora_time_changed;
 
 	/**
+	 * flag, measure to the shell, not to the radio
+	 */
+	volatile uint32_t debug_measure;
+
+	/**
 	 * State of LED0
 	 */
 	struct led_t led0;
