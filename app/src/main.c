@@ -541,9 +541,11 @@ void app_main(void *u1, void *u2, void *u3)
 
 		if (global.config_changed == 1)
 		{
+			LOG_INF("config_changed");
 			global.config_changed = 0;
 			saved_config_save(&global.config);
 			init_from_config(&global.config);
+			lora_send_info();
 		}
 
 		if (global.lora_time_changed == 1)

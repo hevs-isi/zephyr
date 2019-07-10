@@ -210,7 +210,7 @@ void lora_time_AppTimeAns(const uint8_t data[5])
 static int decode_config(uint32_t port, const uint8_t *data, size_t size)
 {
 	struct sensor_config_t *c;
-
+	printk("toto1 size=%d\n", size);
 	switch (port)
 	{
 		case 1:
@@ -227,13 +227,15 @@ static int decode_config(uint32_t port, const uint8_t *data, size_t size)
 
 	if (size < 9)
 	{
+		LOG_WRN("size < 9 ignoring");
 		return -EINVAL;
 	}
 
 	uint8_t version = data[0];
 
-	if (version != 3 || version !=4)
+	if (version != 3 && version !=4)
 	{
+		LOG_WRN("version %"PRIu8"unkown", version);
 		return -EINVAL;
 	}
 
@@ -253,8 +255,15 @@ static int decode_config(uint32_t port, const uint8_t *data, size_t size)
 
 	global.config_changed = 1;
 
-	LOG_INF("input%"PRIu32": period:%"PRIu32" s, wakeup_ms:%"PRIu32" ms", port - 1, c->period, c->wakeup_ms);
-
+	if (c->enable)
+	{
+		LOG_INF("input%"PRIu32": period:%"PRIu32" s, wakeup_ms:%"PRIu32" ms", port - 1, c->period, c->wakeup_ms);
+	}
+	else
+	{
+		LOG_INF("input%"PRIu32": disable", port - 1);
+	}
+	printk("toto2\n");
 	return 0;
 }
 
@@ -283,7 +292,6 @@ int wimod_data_rx_handler(uint32_t port, const uint8_t *data, size_t size)
 		case 1:
 		case 2:
 			ret = decode_config(port, data, size);
-			lora_send_info();
 			return ret;
 		break;
 

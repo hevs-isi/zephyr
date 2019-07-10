@@ -79,6 +79,14 @@ static u8_t tx_buffer[sizeof( wimod_hci_message_t ) * 2 + 2];
 //------------------------------------------------------------------------------
 static struct slip_t slip_buffer;
 
+struct item_t
+{
+	uint8_t data;
+};
+
+//K_MSGQ_DEFINE(hci_msgq, sizeof(item_t), 10, 4);
+
+
 static void uart_isr(struct device *dev)
 {
 	while (uart_irq_update(dev) && uart_irq_is_pending(dev))
