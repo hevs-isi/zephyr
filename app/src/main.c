@@ -20,6 +20,7 @@
 #include "app_rtc.h"
 #include "buttons.h"
 #include <wimod_lorawan_api.h>
+#include "datalogger.h"
 
 struct global_t global =
 {
@@ -468,11 +469,57 @@ static K_THREAD_DEFINE(led0_thread_id, STACKSIZE, led0_thread, NULL, NULL,
 static K_THREAD_DEFINE(led1_thread_id, STACKSIZE, led1_thread, NULL, NULL,
 	NULL, 1, 0, K_FOREVER);
 
+static void datalogger_loop(uint32_t delay_ms)
+{
+		uint32_t count = 0;
+	s64_t last = k_uptime_get();
+	k_thread_abort(led0_thread_id);
+	k_thread_abort(led1_thread_id);
+	led0_set(1);
+	psu_ind(1);
+	lora_off();
+
+	for (;;)
+	{
+		uint32_t value[2];
+
+		led1_set(0);
+		s64_t reftime;
+		do
+		{
+			k_sleep(1);
+			reftime = last;
+		} while (k_uptime_delta(&reftime) < delay_ms);
+		last += delay_ms;
+		led1_set(1);
+
+		for (size_t i = 0; i < 2 ; i++)
+		{
+			int ret;
+			ret = measure_immediate(&global.config.sensor_config[i], &value[i], i);
+			if (ret)
+			{
+				LOG_ERR("measure failed on %zu", i);
+			}
+		}
+		LOG_INF("measure in0: %"PRIu32" mv in1: %"PRIu32, value[0], value[1]);
+		datalogger_nprintf(50, "%"PRIu32",%"PRIu32"\n", value[0], value[1]);
+
+		if ((count++ % 30) == 0)
+		{
+			LOG_INF("datalogger sync");
+			datalogger_sync();
+		}
+	}
+}
+
 void app_main(void *u1, void *u2, void *u3)
 {
 	ARG_UNUSED(u1);
 	ARG_UNUSED(u2);
 	ARG_UNUSED(u3);
+
+	int ret;
 
 	lp_init();
 	gps_off();
@@ -505,6 +552,18 @@ void app_main(void *u1, void *u2, void *u3)
 
 	uint32_t sleep_prevent_duration = 0;
 	uint32_t sleep_seconds = 0;
+
+	/**
+	 * Detect the SD card, if it is inserted, switch to datalogger mode
+	 */
+	psu_cpu_hp(1);	// The SD needs 3.0V
+	ret = datalogger_init();
+	if (ret == 0)
+	{
+		LOG_INF("datalogger mode");
+		datalogger_loop(1000);
+	}
+	psu_cpu_hp(0);
 
 	if (0) for (;;)
 	{
