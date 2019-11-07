@@ -513,6 +513,32 @@ static void datalogger_loop(uint32_t delay_ms)
 	}
 }
 
+#define BATTERY_LOW_LIMIT_MV 2800
+
+/**
+ * \brief wait until batteries charged enough
+ *
+ * There is a blackout risk if we use too much current (radio, ...) and the
+ * batteries are discharged. This will can prevent the charge since the
+ * charge_enable pin is driven by the cpu. So just sleep until there is
+ * enough power in the batteries.
+ */
+static void wait_vbat_ready(void)
+{
+	do
+	{
+		uint16_t mv = adc_measure_vbat();
+		if (mv > BATTERY_LOW_LIMIT_MV)
+		{
+			break;
+		}
+		LOG_WRN("battery < %"PRIu16", sleeping", mv);
+		k_sleep(1000);
+		stm32_sleep(59*1000);
+	}
+	while (1);
+}
+
 void app_main(void *u1, void *u2, void *u3)
 {
 	ARG_UNUSED(u1);
@@ -536,7 +562,6 @@ void app_main(void *u1, void *u2, void *u3)
 
 	psu_5v(0);
 	psu_ind(0);
-	psu_charge(1);
 	psu_cpu_hp(0);
 	saved_config_init();
 	saved_config_read(&global.config);
@@ -545,6 +570,9 @@ void app_main(void *u1, void *u2, void *u3)
 	all_timers_now(app_rtc_get());
 
 	//gps_init();
+
+	psu_charge(1);
+	wait_vbat_ready();
 
 	lora_init();
 	adc_init();
