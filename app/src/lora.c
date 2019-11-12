@@ -24,9 +24,9 @@ const char *nws2str(uint8_t state)
 		case 0x00:
 			return "INACTIVE";
 		case 0x01:
-			return "ative (ABP)";
+			return "active (ABP)";
 		case 0x02:
-			return "ative (OTAA)";
+			return "active (OTAA)";
 		case 0x03:
 			return "joining (OTAA)";
 		default:
