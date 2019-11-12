@@ -41,7 +41,7 @@ struct global_t global =
 };
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #if CONFIG_LORA_IM881A
 #include <im881a.h>
@@ -369,19 +369,19 @@ static uint32_t tick(uint32_t now)
 
 		if (expired_restart(&measure_timer_a, now))
 		{
-			LOG_DBG("expired:measure_timer_a");
 			ret = measure(&global.config.sensor_config[0], &value0, 0);
+			LOG_INF("lora:measure channel a : %"PRIu32" mV", value0);
 		}
 
 		if (expired_restart(&measure_timer_b, now))
 		{
-			LOG_DBG("expired:measure_timer_b");
 			ret = measure(&global.config.sensor_config[1], &value1, 1);
+			LOG_INF("lora:measure channel a : %"PRIu32" mV", value1);
 		}
 
 		if (expired_restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr))))
 		{
-			LOG_DBG("expired:tx_timer_a");
+			LOG_INF("lora:send channel a : %"PRIu32" mV", value0);
 			struct lw_tx_result_t txr;
 			wimod_lorawan_send_u_radio_data(1, &value0, sizeof(value0), &txr);
 			k_sleep(RADIO_TIMEOUT);
@@ -389,7 +389,7 @@ static uint32_t tick(uint32_t now)
 
 		if (expired_restart_psnr(&tx_timer_b, now, prng(tx_timer_b.next, devaddr, sizeof(devaddr))))
 		{
-			LOG_DBG("expired:tx_timer_b");
+			LOG_INF("lora:send channel b : %"PRIu32" mV", value1);
 			struct lw_tx_result_t txr;
 			wimod_lorawan_send_u_radio_data(2, &value1, sizeof(value1), &txr);
 			k_sleep(RADIO_TIMEOUT);
@@ -398,14 +398,14 @@ static uint32_t tick(uint32_t now)
 
 	if (expired_restart_psnr(&sync_timer, now, prng(sync_timer.next, devaddr, sizeof(devaddr))))
 	{
-		LOG_DBG("expired:sync_timer");
+		LOG_INF("lora:request time");
 		lora_time_AppTimeReq(0);
 		k_sleep(RADIO_TIMEOUT);
 	}
 
 	if (expired_restart(&charge_timer, now))
 	{
-		LOG_DBG("expired:charge_timer");
+		LOG_INF("battery:%"PRIu32" mV", value1);
 		if (1 /* FIXME : measure battery temperature, disable when < 0°C */)
 		{
 			psu_charge(1);
@@ -418,7 +418,7 @@ static uint32_t tick(uint32_t now)
 
 	if (expired_restart_psnr(&info_timer, now, prng(info_timer.next, devaddr, sizeof(devaddr))))
 	{
-		LOG_DBG("expired:info_timer");
+		LOG_INF("lora:send info");
 		lora_send_info();
 		k_sleep(RADIO_TIMEOUT);
 	}
@@ -571,20 +571,15 @@ void app_main(void *u1, void *u2, void *u3)
 
 	//gps_init();
 
+	adc_init();
 	psu_charge(1);
 	wait_vbat_ready();
-
-	lora_init();
-	adc_init();
-	buttons_init();
-
-	uint32_t sleep_prevent_duration = 0;
-	uint32_t sleep_seconds = 0;
 
 	/**
 	 * Detect the SD card, if it is inserted, switch to datalogger mode
 	 */
 	psu_cpu_hp(1);	// The SD needs 3.0V
+	LOG_WRN("Searching for SD card...");
 	ret = datalogger_init();
 	if (ret == 0)
 	{
@@ -592,6 +587,12 @@ void app_main(void *u1, void *u2, void *u3)
 		datalogger_loop(1000);
 	}
 	psu_cpu_hp(0);
+
+	lora_init();
+	buttons_init();
+
+	uint32_t sleep_prevent_duration = 0;
+	uint32_t sleep_seconds = 0;
 
 	if (0) for (;;)
 	{
