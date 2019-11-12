@@ -27,7 +27,7 @@
 #include "misc/byteorder.h"
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(lw_api, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(lw_api, LOG_LEVEL_INF);
 
 static uint32_t mk_uint16_t(const uint8_t *buffer)
 {
@@ -101,7 +101,8 @@ static void wimod_timer_stop_handler(struct k_timer *timer_id)
 
 static void wimod_timer_expired_handler(struct k_timer *timer_id)
 {
-	LOG_WRN("expired");
+	wimod_hci_message_t *tx_msg = (wimod_hci_message_t *)z_impl_k_timer_user_data_get(timer_id);
+	LOG_WRN("expired sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
 }
 
 static K_TIMER_DEFINE(wimod_timer, wimod_timer_expired_handler, wimod_timer_stop_handler);
@@ -123,7 +124,7 @@ static int wimod_send_message_unlock(wimod_hci_message_t *tx_msg)
 	int status;
 
 	k_timer_user_data_set(&wimod_timer, tx_msg);
-	k_timer_start(&wimod_timer, K_SECONDS(1), 0);
+	k_timer_start(&wimod_timer, K_MSEC(500), 0);
 	LOG_DBG("sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
 	status = wimod_hci_send_message(tx_msg);
 	if (status != 0)
@@ -427,7 +428,7 @@ int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey)
 		return -EINVAL;
 	}
 
-	if (strlen(appEui) !=16 || strlen(appKey) !=32)
+	if (strlen(appEui) != 16 || strlen(appKey) != 32)
 	{
 		LOG_ERR("appKey or appEui bad size");
 		return -EINVAL;
@@ -449,6 +450,52 @@ int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey)
 	for (i = 0; i < 16; i++) {
 		sprintf(buf, "0x%c%c", pos[0+2*i], pos[1+2*i]);
 		tx_msg->payload[8+i] = strtol(buf, NULL, 0);
+	}
+
+	return wimod_send_message_unlock(tx_msg);
+}
+
+int wimod_lorawan_activate(const char *address, const char *nwkskey, const char *appskey)
+{
+	const char *pos;
+	size_t i;
+	char buf[5];
+
+	if (!address || !nwkskey || !appskey)
+	{
+		LOG_ERR("address or nwkskey or appskey  is NULL");
+		return -EINVAL;
+	}
+
+	if (strlen(address) != 8 || strlen(nwkskey) != 32 || strlen(appskey) != 32)
+	{
+		LOG_ERR("address or nwkskey or appskey bad size");
+		return -EINVAL;
+	}
+
+	wimod_hci_message_t *tx_msg = tx_buffer_lock();
+
+	tx_msg->sap_id = LORAWAN_SAP_ID;
+	tx_msg->msg_id = LORAWAN_MSG_ACTIVATE_DEVICE_REQ;
+	tx_msg->length = 36;
+
+	pos = address;
+	for (i = 0; i < 4; i++) {
+		sprintf(buf, "0x%c%c", pos[0+2*i], pos[1+2*i]);
+		tx_msg->payload[i] = strtol(buf, NULL, 0);
+	}
+	*(u32_t*)&tx_msg->payload[0] = sys_cpu_to_be32(*(u32_t*)&tx_msg->payload[0]);
+
+	pos = nwkskey;
+	for (i = 0; i < 16; i++) {
+		sprintf(buf, "0x%c%c", pos[0+2*i], pos[1+2*i]);
+		tx_msg->payload[4+i] = strtol(buf, NULL, 0);
+	}
+
+	pos = appskey;
+	for (i = 0; i < 16; i++) {
+		sprintf(buf, "0x%c%c", pos[0+2*i], pos[1+2*i]);
+		tx_msg->payload[4+16+i] = strtol(buf, NULL, 0);
 	}
 
 	return wimod_send_message_unlock(tx_msg);
@@ -1037,6 +1084,86 @@ static wimod_hci_message_t *process_rx(wimod_hci_message_t *rx_msg)
 		{
 			k_timer_stop(&wimod_timer);
 			result = tx_msg->result;
+		}
+	}
+	else
+	{
+		if (rx_msg->sap_id == 0x10)
+		{
+			switch (rx_msg->msg_id)
+			{
+			case LORAWAN_MSG_JOIN_NETWORK_TX_IND:
+			case LORAWAN_MSG_JOIN_NETWORK_IND:
+			case LORAWAN_MSG_SEND_UDATA_TX_IND:
+			case LORAWAN_MSG_RECV_UDATA_IND:
+			case LORAWAN_MSG_SEND_CDATA_TX_IND:
+			case LORAWAN_MSG_RECV_CDATA_IND:
+			case LORAWAN_MSG_RECV_ACK_IND:
+			case LORAWAN_MSG_RECV_NO_DATA_IND:
+			case LORAWAN_MSG_RECV_MAC_CMD_IND:
+				/* indication can't be expected by definition */
+				LOG_DBG("indication : rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+			break;
+
+			case LORAWAN_MSG_ACTIVATE_DEVICE_RSP:
+			case LORAWAN_MSG_SET_JOIN_PARAM_RSP:
+			case LORAWAN_MSG_JOIN_NETWORK_RSP:
+			case LORAWAN_MSG_SEND_UDATA_RSP:
+			case LORAWAN_MSG_SEND_CDATA_RSP:
+			case LORAWAN_MSG_SET_RSTACK_CONFIG_RSP:
+			case LORAWAN_MSG_GET_RSTACK_CONFIG_RSP:
+			case LORAWAN_MSG_REACTIVATE_DEVICE_RSP:
+			case LORAWAN_MSG_DEACTIVATE_DEVICE_RSP:
+			case LORAWAN_MSG_FACTORY_RESET_RSP:
+			case LORAWAN_MSG_SET_DEVICE_EUI_RSP:
+			case LORAWAN_MSG_GET_DEVICE_EUI_RSP:
+			case LORAWAN_MSG_GET_NWK_STATUS_RSP:
+			case LORAWAN_MSG_SEND_MAC_CMD_RSP:
+			case LORAWAN_MSG_SET_CUSTOM_CFG_RSP:
+			case LORAWAN_MSG_GET_CUSTOM_CFG_RSP:
+			case LORAWAN_MSG_GET_SUPPORTED_BANDS_RSP:
+			case LORAWAN_MSG_SET_LINKADRREQ_CONFIG_RSP:
+			case LORAWAN_MSG_GET_LINKADRREQ_CONFIG_RSP:
+				LOG_WRN("unexpected : rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+			break;
+
+			default:
+				LOG_ERR("unknown : rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+			break;
+			}
+		}
+		else if (rx_msg->sap_id == 0x01)
+		{
+			switch (rx_msg->msg_id)
+			{
+				case DEVMGMT_MSG_RTC_ALARM_IND:
+				/* indication can't be expected by definition */
+					LOG_DBG("indication : rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+				break;
+
+				case DEVMGMT_MSG_PING_RSP:
+				case DEVMGMT_MSG_GET_DEVICE_INFO_RSP:
+				case DEVMGMT_MSG_GET_FW_VERSION_RSP:
+				case DEVMGMT_MSG_RESET_RSP:
+				case DEVMGMT_MSG_SET_OPMODE_RSP:
+				case DEVMGMT_MSG_GET_OPMODE_RSP:
+				case DEVMGMT_MSG_SET_RTC_RSP:
+				case DEVMGMT_MSG_GET_RTC_RSP:
+				case DEVMGMT_MSG_GET_DEVICE_STATUS_RSP:
+				case DEVMGMT_MSG_SET_RTC_ALARM_RSP:
+				case DEVMGMT_MSG_CLEAR_RTC_ALARM_RSP:
+				case DEVMGMT_MSG_GET_RTC_ALARM_RSP:
+					LOG_WRN("unexpected : rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+				break;
+
+				default:
+					LOG_ERR("unknown : rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
+				break;
+			}
+		}
+		else
+		{
+			LOG_WRN("unexpected : rx:sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, rx_msg->sap_id, rx_msg->msg_id);
 		}
 	}
 

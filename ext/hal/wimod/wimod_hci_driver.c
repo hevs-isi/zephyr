@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(lw_hci, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(lw_hci, LOG_LEVEL_INF);
 
 static struct device *uart_dev;
 

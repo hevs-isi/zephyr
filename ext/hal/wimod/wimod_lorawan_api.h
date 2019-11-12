@@ -241,6 +241,7 @@ int wimod_lorawan_set_op_mode();
 int wimod_lorawan_get_op_mode();
 
 int wimod_lorawan_set_join_param_request(const char *appEui, const char *appKey);
+int wimod_lorawan_activate(const char *address, const char *nwkskey, const char *appskey);
 
 // join network
 int wimod_lorawan_join_network_request(join_network_cb cb);
