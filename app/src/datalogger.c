@@ -66,7 +66,7 @@ int datalogger_init(void)
 	const char *disk_pdrv = "SD";
 
 	if (disk_access_init(disk_pdrv) != 0) {
-		LOG_ERR("Storage init ERROR!");
+		LOG_WRN("No SD card found");
 		return EIO;
 	}
 
