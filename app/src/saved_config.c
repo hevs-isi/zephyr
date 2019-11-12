@@ -180,14 +180,14 @@ int saved_config_read(struct saved_config_t *config)
 			case 1:
 			if (crc(&tmp) != tmp.crc)
 			{
-				LOG_INF("config[%zu] bad crc", i);
+				LOG_WRN("config[%zu] bad crc", i);
 				invalid = 1;
 				continue;
 			}
 			break;
 
 			default:
-				LOG_INF("config[%zu] unknown changes", i);
+				LOG_WRN("config[%zu] unknown changes", i);
 				invalid = 1;
 				continue;
 			break;
@@ -195,7 +195,7 @@ int saved_config_read(struct saved_config_t *config)
 
 		if (!valid)
 		{
-			LOG_INF("config[%zu] valid", i);
+			LOG_DBG("config[%zu] valid", i);
 			valid = 1;
 			*config = tmp;
 			latest = tmp.changes;
@@ -204,7 +204,7 @@ int saved_config_read(struct saved_config_t *config)
 
 		if (latest - tmp.changes > 0)
 		{
-			LOG_INF("config[%zu] valid, changes:%"PRIu32, i, tmp.changes);
+			LOG_DBG("config[%zu] valid, changes:%"PRIu32, i, tmp.changes);
 			*config = tmp;
 			latest = tmp.changes;
 		}
@@ -316,7 +316,7 @@ void saved_config_init(void)
 	}
 
 	LOG_INF("boot count : %"PRIu32" - changes : %"PRIu32, config.boot_count, config.changes);
-	LOG_INF("sizeof(struct config_t) : %"PRIu32" (free: %"PRIu32")", (uint32_t)sizeof(config), (uint32_t)sizeof(config._reserved));
+	LOG_DBG("sizeof(struct config_t) : %"PRIu32" (free: %"PRIu32")", (uint32_t)sizeof(config), (uint32_t)sizeof(config._reserved));
 }
 
 const struct sensor_config_t default_off =
