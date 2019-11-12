@@ -370,13 +370,13 @@ static uint32_t tick(uint32_t now)
 		if (expired_restart(&measure_timer_a, now))
 		{
 			ret = measure(&global.config.sensor_config[0], &value0, 0);
-			LOG_INF("lora:measure channel a : %"PRIu32" mV", value0);
+			LOG_INF("measure:channel a : %"PRIu32" mV", value0);
 		}
 
 		if (expired_restart(&measure_timer_b, now))
 		{
 			ret = measure(&global.config.sensor_config[1], &value1, 1);
-			LOG_INF("lora:measure channel a : %"PRIu32" mV", value1);
+			LOG_INF("measure:channel b : %"PRIu32" mV", value1);
 		}
 
 		if (expired_restart_psnr(&tx_timer_a, now, prng(tx_timer_a.next, devaddr, sizeof(devaddr))))
