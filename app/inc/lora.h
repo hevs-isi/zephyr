@@ -41,6 +41,16 @@ void lora_time_AppTimeReq(uint8_t AnsRequired);
  */
 void lora_send_info(void);
 
+/**
+ * \brief Converts network state to string
+ *
+ * \param network state
+ *
+ * \return a string describing the network state
+ */
+const char *nws2str(uint8_t state);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -80,23 +80,6 @@ static int shell_cmd_fw(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
-static const char *nws2str(uint8_t state)
-{
-	switch (state)
-	{
-		case 0x00:
-			return "INACTIVE";
-		case 0x01:
-			return "ative (ABP)";
-		case 0x02:
-			return "ative (OTAA)";
-		case 0x03:
-			return "joining (OTAA)";
-		default:
-			return "impossibru";
-	}
-}
-
 static int shell_nwk_status(const struct shell *shell, size_t argc, char *argv[])
 {
 	ARG_UNUSED(argc);
@@ -211,7 +194,7 @@ static int shell_factory_reset(const struct shell *shell, size_t argc, char *arg
 	return 0;
 }
 
-static int shell_cmd_setparam(const struct shell *shell, size_t argc, char *argv[])
+static int shell_cmd_set_otaa(const struct shell *shell, size_t argc, char *argv[])
 {
 	shell_connected(shell);
 
@@ -223,8 +206,7 @@ static int shell_cmd_setparam(const struct shell *shell, size_t argc, char *argv
 	const char *appEui = argv[1]; //"70B3D57ED0017ED9";
 	const char *appKey = argv[2]; //"3F72D483526535F171F1CBA50FDDB884";
 
-	// lora set 70B3D57ED0017ED9 3F72D483526535F171F1CBA50FDDB884
-
+	// lora set_otaa 70B3D57ED0017ED9 3F72D483526535F171F1CBA50FDDB884
 	if (strlen(appEui) != 16)
 	{
 		shell_error(shell, "Invalid APPEUI, length MUST be 16 (was '%s')\n", appEui);
@@ -237,13 +219,85 @@ static int shell_cmd_setparam(const struct shell *shell, size_t argc, char *argv
 		return -1;
 	}
 
+	shell_print(shell, "APPEUI:%s\n", appEui);
+	shell_print(shell, "APPKEY:%s\n", appKey);
+
 	/*
 	 * Some modules (at least im881) may come from the factory as class C device
 	 * So configure the module as class A.
 	 */
-	wimod_lorawan_set_rstack_config();
+	for (;;)
+	{
+		int status1 = wimod_lorawan_set_rstack_config();
+		int status2 = wimod_lorawan_set_join_param_request(appEui, appKey);
 
-	wimod_lorawan_set_join_param_request(appEui, appKey);
+		if (status1 || status2)
+		{
+			shell_error(shell, "failed, retrying\n");
+		}
+
+		shell_print(shell, "done\n");
+
+		break;
+	}
+
+	return 0;
+}
+
+static int shell_cmd_set_abp(const struct shell *shell, size_t argc, char *argv[])
+{
+	shell_connected(shell);
+
+	if (argc != 4)
+	{
+		return -1;
+	}
+
+	const char *address = argv[1]; //"70B3D57ED0017ED9";
+	const char *netskey = argv[2]; //"3F72D483526535F171F1CBA50FDDB884";
+	const char *appskey = argv[3]; //"3F72D483526535F171F1CBA50FDDB884";
+
+	// lora set_abp 260116FC 6CC82E0418277585E6C179A8AA5B1ECA 7415CEEA7F4C3D9046E2B2F64A68F908
+	if (strlen(address) != 8)
+	{
+		shell_error(shell, "Invalid ADDRESS, length MUST be 16 (was '%s')\n", address);
+		return -1;
+	}
+
+	if (strlen(netskey) != 32)
+	{
+		shell_error(shell, "Invalid NETSKEY, length MUST be 32 (was '%s')\n", netskey);
+		return -1;
+	}
+
+	if (strlen(appskey) != 32)
+	{
+		shell_error(shell, "Invalid APPSKEY, length MUST be 32 (was '%s')\n", appskey);
+		return -1;
+	}
+
+	shell_print(shell, "ADDRESS:%s\n", address);
+	shell_print(shell, "NETSKEY:%s\n", appskey);
+	shell_print(shell, "APPSKEY:%s\n", netskey);
+
+	/*
+	 * Some modules (at least im881) may come from the factory as class C device
+	 * So configure the module as class A.
+	 */
+	for (;;)
+	{
+		int status1 = wimod_lorawan_set_rstack_config();
+		int status2 = wimod_lorawan_activate(address, netskey, appskey);
+
+		if (status1 || status2)
+		{
+			shell_error(shell, "failed, retrying\n");
+		}
+
+		shell_print(shell, "done\n");
+
+		break;
+	}
 
 	return 0;
 }
@@ -406,7 +460,8 @@ static int shell_reset(const struct shell *shell, size_t argc, char *argv[])
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(lora_sub,
-	SHELL_CMD_ARG(set, NULL, "set APPEUI APPKEY", shell_cmd_setparam, 2, 2),
+	SHELL_CMD_ARG(set_otaa, NULL, "set_otaa APPEUI APPKEY", shell_cmd_set_otaa, 2, 2),
+	SHELL_CMD_ARG(set_abp, NULL, "set_abp ADDRESS NETSKEY APPSKEY", shell_cmd_set_abp, 3, 3),
 	SHELL_CMD_ARG(join, NULL, "no help", shell_cmd_join, 0, 1),
 	SHELL_CMD_ARG(deveui, NULL, "read deveui", shell_cmd_deveui, 0, 1),
 	SHELL_CMD_ARG(tx_info, NULL, "tx lora_info", shell_cmd_tx_info, 0, 0),

@@ -9,7 +9,7 @@
 #include "app_rtc.h"
 #include "app_adc.h"
 
-LOG_MODULE_REGISTER(lora, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(lora, LOG_LEVEL_INF);
 
 #ifdef CONFIG_LORA_IM881A
 #include <wimod_lorawan_api.h>
@@ -17,9 +17,21 @@ LOG_MODULE_REGISTER(lora, LOG_LEVEL_DBG);
 
 #include <gpio.h>
 
-void join_callback()
+const char *nws2str(uint8_t state)
 {
-	LOG_INF("LoRaWAN Network started.\n");
+	switch (state)
+	{
+		case 0x00:
+			return "INACTIVE";
+		case 0x01:
+			return "ative (ABP)";
+		case 0x02:
+			return "ative (OTAA)";
+		case 0x03:
+			return "joining (OTAA)";
+		default:
+			return "impossibru";
+	}
 }
 
 int lora_init()
@@ -27,8 +39,9 @@ int lora_init()
 	int status;
 
 	lora_on();
-	LOG_WRN("lora_on");
 	k_sleep(K_MSEC(200));
+
+	LOG_DBG("lora_on");
 
 	status = wimod_lorawan_init();
 	if (status)
@@ -37,29 +50,57 @@ int lora_init()
 		return -EIO;
 	}
 
+	status = wimod_lorawan_reset();
+
 	for (int i = 0; i < 5; i++)
 	{
-		status = wimod_lorawan_reset();
-		if (status == 0)
+		if (status)
 		{
-			LOG_DBG("wimod_lorawan_reset success at try #%d", i+1);
-			break;
+			LOG_ERR("wimod_lorawan_reset failed, turn it OFF then ON");
+			lora_off();
+			k_sleep(K_SECONDS(1));
+			lora_on();
+			k_sleep(K_MSEC(500));
+			status = wimod_lorawan_send_ping();
+			if (status)
+			{
+				LOG_ERR("hard reset failed");
+			}
 		}
 	}
 
-	if (status)
+	for (;;)
 	{
-		LOG_ERR("wimod_lorawan_reset failed, turn it OFF then ON");
-		lora_off();
-		k_sleep(K_SECONDS(1));
-		lora_on();
-		k_sleep(K_MSEC(200));
-		status = wimod_lorawan_send_ping();
+		struct lw_net_status_t nws;
+
+		int status = wimod_lorawan_get_nwk_status(&nws);
 		if (status)
 		{
-			LOG_ERR("hard reset failed");
-			return -EIO;
+			LOG_DBG("wimod_lorawan_get_nwk_status command refused");
+			k_sleep(100);
+			continue;
 		}
+
+		LOG_INF("state: 0x%02"PRIu8" (%s)", nws.state, nws2str(nws.state));
+
+		switch (nws.state)
+		{
+			case 0x03:
+				LOG_INF("Waiting for OTAA, may be very long on TTN.");
+			break;
+
+			case 0x01:
+			case 0x02:
+				LOG_INF("lora connected!");
+				return 0;
+			break;
+
+			case 0x00:
+				LOG_INF("lora not configured, configure using lora_set_apb or lora_set_otaa");
+			break;
+		}
+
+		k_sleep(K_SECONDS(10));
 	}
 
 	return 0;
@@ -125,11 +166,11 @@ void lora_send_info(void)
 	};
 
 	// little endian protocol
-	printk("vbat:%"PRIu32" mv\n", vbat);
-	printk("vin:%"PRIu32" mv\n", vin);
-	printk("temp:%"PRId32".%"PRId32" °C\n", temp/10, temp > 0 ? temp%10 : -temp % 10);
-	printk("period0:%"PRIu32"\n", period[0]);
-	printk("period1:%"PRIu32"\n", period[1]);
+	LOG_DBG("vbat:%"PRIu32" mv", vbat);
+	LOG_DBG("vin:%"PRIu32" mv", vin);
+	LOG_DBG("temp:%"PRId32".%"PRId32" °C", temp/10, temp > 0 ? temp%10 : -temp % 10);
+	LOG_DBG("period0:%"PRIu32"", period[0]);
+	LOG_DBG("period1:%"PRIu32"", period[1]);
 	vbat = sys_cpu_to_le32(vbat);
 	vin = sys_cpu_to_le32(vin);
 	temp = sys_cpu_to_le32(temp);
@@ -199,7 +240,7 @@ void lora_time_AppTimeAns(const uint8_t data[5])
 	LOG_DBG("time_net:0x%"PRIx32, time);
 	time = sys_le32_to_cpu(time);
 	LOG_DBG("time:0x%"PRIx32, time);
-	LOG_DBG("time delta : %"PRId32, time);
+	LOG_INF("time delta : %"PRId32, time);
 	if (time)
 	{
 		global.lora_time_delta = time;
