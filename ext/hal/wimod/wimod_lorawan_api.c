@@ -114,7 +114,7 @@ static wimod_hci_message_t *tx_buffer_lock(void)
 	return &tx_buffer;
 }
 
-static void tx_buffer_unlock()
+static void tx_buffer_unlock(void)
 {
 	k_mutex_unlock(&lw_mutex);
 }
@@ -124,7 +124,7 @@ static int wimod_send_message_unlock(wimod_hci_message_t *tx_msg)
 	int status;
 
 	k_timer_user_data_set(&wimod_timer, tx_msg);
-	k_timer_start(&wimod_timer, K_MSEC(500), 0);
+	k_timer_start(&wimod_timer, K_MSEC(1000), 0);
 	LOG_DBG("sap_id:0x%02"PRIx8",msg_id:0x%02"PRIx8, tx_msg->sap_id, tx_msg->msg_id);
 	status = wimod_hci_send_message(tx_msg);
 	if (status != 0)

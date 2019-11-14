@@ -21,13 +21,12 @@ static struct device *uart_dev;
 #define CRC16_INIT_VALUE	0xFFFF	// initial value for CRC algorithem
 #define CRC16_GOOD_VALUE	0x0F47	// constant compare value for check
 
-static bool CRC16_Check (const u8_t *data, u16_t length, u16_t initVal)
+static int CRC16_Check(const u8_t *data, u16_t length, u16_t initVal)
 {
 	// calc ones complement of CRC16
-	u16_t crc = ~crc16_ccitt(CRC16_INIT_VALUE, data, length);
-
+	uint16_t crc = ~crc16_ccitt(CRC16_INIT_VALUE, data, length);
 	// CRC ok ?
-	return (bool)(crc == CRC16_GOOD_VALUE);
+	return crc == CRC16_GOOD_VALUE;
 }
 
 //------------------------------------------------------------------------------
@@ -79,33 +78,49 @@ static u8_t tx_buffer[sizeof( wimod_hci_message_t ) * 2 + 2];
 //------------------------------------------------------------------------------
 static struct slip_t slip_buffer;
 
-struct item_t
-{
-	uint8_t data;
-};
-
-//K_MSGQ_DEFINE(hci_msgq, sizeof(item_t), 10, 4);
-
+K_MSGQ_DEFINE(hci_rx_msgq, 1, 128, 1);
 
 static void uart_isr(struct device *dev)
 {
-	while (uart_irq_update(dev) && uart_irq_is_pending(dev))
+	uart_irq_update(dev);
+
+	if (!uart_irq_rx_ready(dev))
 	{
-		u8_t byte;
-		int rx;
+		return;
+	}
 
-		if (!uart_irq_rx_ready(dev)) {
-			continue;
-		}
-
-		rx = uart_fifo_read(dev, &byte, 1);
-		if (rx < 0)
+	for (;;)
+	{
+		uint8_t byte;
+		int rx = uart_fifo_read(dev, &byte, 1);
+		if (rx != 1)
 		{
 			return;
 		}
+
+		if (k_msgq_put(&hci_rx_msgq, &byte, K_NO_WAIT))
+		{
+			printk("hci_rx_msgq full");
+		}
+	}
+}
+
+static void hci_rx_thread(void)
+{
+	u8_t byte;
+
+	while (1) {
+		/* get a data item */
+		k_msgq_get(&hci_rx_msgq, &byte, K_FOREVER);
+
+		/* process data item */
 		slip_decode_data(&slip_buffer, &byte, 1);
 	}
 }
+
+K_THREAD_DEFINE(hci_rx_thread_id, 1024,
+                hci_rx_thread, NULL, NULL, NULL,
+                1, 0, K_FOREVER);
 
 int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 					wimod_hci_message_t*	rx_message)
@@ -145,6 +160,8 @@ int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 
 	uart_irq_rx_enable(uart_dev);
 
+	k_thread_start(hci_rx_thread_id);
+
 	return 0;
 }
 
@@ -158,7 +175,7 @@ int wimod_hci_init(wimod_hci_cb_rx_message   cb_rx_message,
 
 int wimod_hci_send_message(wimod_hci_message_t *tx_message)
 {
-	LOG_DBG("here");
+	LOG_DBG("start");
 
 	u8_t buf[1] = { SLIP_END };
 	int i;
@@ -199,6 +216,7 @@ int wimod_hci_send_message(wimod_hci_message_t *tx_message)
 	// message ok ?
 	if (!(tx_length > 0))
 	{
+		LOG_DBG("failed");
 		return -1;
 	}
 
@@ -213,6 +231,8 @@ int wimod_hci_send_message(wimod_hci_message_t *tx_message)
 		//uart_pipe_send(&buf[0], 1);
 		uart_poll_out(uart_dev, tx_buffer[i]);
 	}
+
+	LOG_DBG("end");
 
 	return 0;
 }
@@ -246,6 +266,7 @@ static u8_t *wimod_hci_process_rx_message(u8_t *rx_data, int rx_length)
 		else
 		{
 			HCI.crc_errors++;
+			LOG_WRN("HCI.crc_errors:%d", HCI.crc_errors);
 		}
 	}
 
@@ -257,5 +278,6 @@ static u8_t *wimod_hci_process_rx_message(u8_t *rx_data, int rx_length)
 	}
 
 	// error, disable SLIP decoder
+	LOG_ERR("disable SLIP decoder");
 	return 0;
 }

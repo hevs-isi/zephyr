@@ -7,6 +7,9 @@
 #include <kernel.h>
 #include "wimod_slip.h"
 
+#include <logging/log.h>
+LOG_MODULE_REGISTER(lw_slip, LOG_LEVEL_INF);
+
 //------------------------------------------------------------------------------
 //
 //  Protocol Definitions
@@ -152,6 +155,8 @@ bool slip_set_rx_buffer(struct slip_t *slip, u8_t *rx_buffer, int rx_buf_size) {
 static void slip_store_rx_byte(struct slip_t *slip, u8_t rx_byte) {
 	if (slip->rx_index < slip->rx_buf_size)
 		slip->rx_buffer[slip->rx_index++] = rx_byte;
+	else
+		LOG_WRN("full");
 }
 
 //------------------------------------------------------------------------------
@@ -162,8 +167,9 @@ static void slip_store_rx_byte(struct slip_t *slip, u8_t rx_byte) {
 //
 //------------------------------------------------------------------------------
 
-void slip_decode_data(struct slip_t *slip, const u8_t *src_data, int src_length) {
+void slip_decode_data(struct slip_t *slip, const uint8_t *src_data, int src_length) {
 	// iterate over all received bytes
+	LOG_DBG("data:0x%02"PRIx8, *src_data);
 	while (src_length--) {
 		// get rx_byte
 		u8_t rx_byte = *src_data++;
