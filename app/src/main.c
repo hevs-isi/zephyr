@@ -405,7 +405,7 @@ static uint32_t tick(uint32_t now)
 
 	if (expired_restart(&charge_timer, now))
 	{
-		LOG_INF("battery:%"PRIu32" mV", value1);
+		LOG_INF("battery:%"PRIu16" mV", adc_measure_vbat());
 		if (1 /* FIXME : measure battery temperature, disable when < 0°C */)
 		{
 			psu_charge(1);
@@ -465,9 +465,9 @@ void led1_thread(void *u1, void *u2, void *u3)
 }
 
 static K_THREAD_DEFINE(led0_thread_id, STACKSIZE, led0_thread, NULL, NULL,
-	NULL, 1, 0, K_FOREVER);
+	NULL, 2, 0, K_FOREVER);
 static K_THREAD_DEFINE(led1_thread_id, STACKSIZE, led1_thread, NULL, NULL,
-	NULL, 1, 0, K_FOREVER);
+	NULL, 2, 0, K_FOREVER);
 
 static void datalogger_loop(uint32_t delay_ms)
 {
@@ -578,15 +578,20 @@ void app_main(void *u1, void *u2, void *u3)
 	/**
 	 * Detect the SD card, if it is inserted, switch to datalogger mode
 	 */
-	psu_cpu_hp(1);	// The SD needs 3.0V
-	LOG_WRN("Searching for SD card...");
-	ret = datalogger_init();
-	if (ret == 0)
+	// FIXME : this one crashes the main thread when the clock is 80MHz and
+	// not crashing at 8 or 16 MHz, problem in stm32_lp.c ?  !?!
+	if (1)
 	{
-		LOG_INF("datalogger mode");
-		datalogger_loop(1000);
+		psu_cpu_hp(1);	// The SD needs 3.0V
+		LOG_WRN("Searching for SD card...");
+		ret = datalogger_init();
+		if (ret == 0)
+		{
+			LOG_INF("datalogger mode");
+			datalogger_loop(1000);
+		}
+		psu_cpu_hp(0);
 	}
-	psu_cpu_hp(0);
 
 	lora_init();
 	buttons_init();
@@ -715,5 +720,5 @@ void app_main(void *u1, void *u2, void *u3)
 	}
 }
 
-K_THREAD_DEFINE(app_main_id, 4*STACKSIZE, app_main, NULL, NULL,
-		NULL, 2, 0, K_NO_WAIT);
+K_THREAD_DEFINE(app_main_id, 2*STACKSIZE, app_main, NULL, NULL,
+		NULL, 3, 0, K_NO_WAIT);
