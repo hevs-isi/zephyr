@@ -78,7 +78,7 @@ west flash
 | pin D1 - PA9 - TX | X7 pin 20 - TX |
 | pin D0 - PA10 - RX | X7 pin 14 - RX |
 
-1. Connect the board, and open it's serial port (57600,8,n,1).
+1. Connect the board, and open it's serial port (115200,8,n,1).
 
 1. Go to the app directory:
     ```

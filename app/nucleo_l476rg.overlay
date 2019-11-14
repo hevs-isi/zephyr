@@ -11,13 +11,6 @@
 	status = "ok";
 };
 
-&usart2 {
-	current-speed = <57600>;
-	pinctrl-0 = <&usart2_pins_a>;
-	pinctrl-names = "default";
-	status = "ok";
-};
-
 &usart3 {
    current-speed = <9600>;
    pinctrl-0 = <&usart3_pins_b>;
